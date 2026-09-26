@@ -1,0 +1,30 @@
+import os
+from typing import List, Optional
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class BackendSettings(BaseSettings):
+    """Configuration settings for FastAPI Backend & Supabase Integration."""
+
+    SUPABASE_URL: str = Field(default="https://demo-project.supabase.co")
+    SUPABASE_ANON_KEY: str = Field(default="dummy_anon_key")
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="dummy_service_role_key")
+    SUPABASE_JWT_SECRET: str = Field(default="demo_jwt_secret_key_for_testing_123456789")
+
+    FASTAPI_HOST: str = Field(default="127.0.0.1")
+    FASTAPI_PORT: int = Field(default=8000)
+    API_BASE_URL: str = Field(default="http://127.0.0.1:8000")
+    SECURITY_HOME_ID: Optional[str] = Field(default=None)
+    CORS_ORIGINS: List[str] = Field(
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"]
+    )
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+settings = BackendSettings()
