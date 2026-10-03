@@ -301,11 +301,17 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('security-images', 'security-images', false)
 ON CONFLICT (id) DO NOTHING;
 
--- RLS for Storage Bucket (security-images)
-CREATE POLICY "Authenticated users can access security images"
+-- RLS for Storage Bucket (security-images): Home ownership path restriction
+CREATE POLICY "Users can access own home security images"
     ON storage.objects FOR ALL
     TO authenticated
-    USING (bucket_id = 'security-images');
+    USING (
+        bucket_id = 'security-images' AND
+        (storage.foldername(name))[1] IN (
+            SELECT id::text FROM public.homes WHERE owner_id = auth.uid()
+        )
+    );
+
 
 -- =============================================================================
 -- SUPABASE REALTIME PUBLICATION FOUNDATION

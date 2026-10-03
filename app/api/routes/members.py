@@ -27,13 +27,54 @@ def get_home_members(
     return backend_store.get_home_members(home_id=home_id, requesting_user_id=user_id)
 
 
+@router.get("/homes/{home_id}/members/{member_id}", response_model=MemberResponse)
+def get_home_member_by_id(
+    home_id: UUID,
+    member_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Retrieve a single member of a home owned by the authenticated user."""
+    return backend_store.get_member_by_id(member_id=member_id, requesting_user_id=user_id)
+
+
+@router.put("/homes/{home_id}/members/{member_id}", response_model=MemberResponse)
+def update_home_member(
+    home_id: UUID,
+    member_id: UUID,
+    data: MemberUpdate,
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Update details of a home member within a specific home."""
+    return backend_store.update_member(member_id=member_id, requesting_user_id=user_id, data=data)
+
+
+@router.delete("/homes/{home_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_home_member(
+    home_id: UUID,
+    member_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Delete a home member from a specific home."""
+    backend_store.delete_member(member_id=member_id, requesting_user_id=user_id)
+    return None
+
+
+@router.get("/members/{member_id}", response_model=MemberResponse)
+def get_member(
+    member_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Retrieve details of a home member by member ID."""
+    return backend_store.get_member_by_id(member_id=member_id, requesting_user_id=user_id)
+
+
 @router.put("/members/{member_id}", response_model=MemberResponse)
 def update_member(
     member_id: UUID,
     data: MemberUpdate,
     user_id: UUID = Depends(get_current_user_id),
 ):
-    """Update details of a home member."""
+    """Update details of a home member by member ID."""
     return backend_store.update_member(member_id=member_id, requesting_user_id=user_id, data=data)
 
 
@@ -42,6 +83,6 @@ def delete_member(
     member_id: UUID,
     user_id: UUID = Depends(get_current_user_id),
 ):
-    """Delete a home member."""
+    """Delete a home member by member ID."""
     backend_store.delete_member(member_id=member_id, requesting_user_id=user_id)
     return None

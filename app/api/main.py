@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.backend_settings import settings
-from app.api.routes import api_router
+from app.api.routes import api_router, video_router
 
 app = FastAPI(
     title="Smart Home Security & Voice Assistant API",
@@ -23,6 +23,9 @@ app.add_middleware(
 
 # Register API Router
 app.include_router(api_router, prefix="/api")
+# Also mount video router at root prefix /video for direct GET /video/stream URL access
+app.include_router(video_router, prefix="/video")
+
 
 
 @app.get("/", tags=["Health & Status"])

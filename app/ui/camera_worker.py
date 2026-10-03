@@ -4,6 +4,8 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QImage
 from app.config.settings import CAMERA_INDEX, FRAME_DELAY_MS
 from app.security.security_service import SecurityService
+from app.streaming.frame_manager import get_frame_manager
+from app.streaming.frame_publisher import FramePublisher
 
 
 class CameraWorker(QThread):
@@ -25,6 +27,10 @@ class CameraWorker(QThread):
         self.camera_index = camera_index
         self.running = False
         self.security_service = SecurityService(home_id=home_id)
+        self.frame_manager = get_frame_manager()
+        self.frame_publisher = FramePublisher()
+        self.frame_publisher.start()
+
 
     def set_home_id(self, home_id: str) -> None:
         """Update backend home ID in SecurityService."""
@@ -72,13 +78,19 @@ class CameraWorker(QThread):
                     recognition_results,
                 ) = self.security_service.process_security_frame(frame)
 
+                # Update shared thread-safe FrameManager with processed security overlay frame
+                self.frame_manager.update_frame(annotated_frame)
+                # Publish frame to local HTTP endpoint for inter-process FastAPI streaming
+                self.frame_publisher.publish(self.frame_manager.get_latest_jpeg())
+
                 # Periodic backend connectivity check (every 100 frames ~5s)
+
                 if loop_counter % 100 == 0:
                     is_backend_online = self.security_service.event_service.api_client.health_check()
                     if is_backend_online != prev_backend_status:
                         self.backend_status_updated.emit(is_backend_online)
                         if is_backend_online:
-                            self.log_event.emit("Backend status: ONLINE (http://127.0.0.1:8000)")
+                            self.log_event.emit("Backend status: ONLINE (http://127.0.0.1:8085)")
                         else:
                             self.log_event.emit("Backend status: OFFLINE (Security monitoring running locally)")
                         prev_backend_status = is_backend_online
@@ -154,5 +166,7 @@ class CameraWorker(QThread):
     def stop(self) -> None:
         """Safely request thread termination and camera release."""
         self.running = False
+        self.frame_publisher.stop()
         self.security_service.event_service.shutdown()
         self.wait(2000)
+

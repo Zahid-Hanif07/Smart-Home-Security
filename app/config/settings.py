@@ -35,13 +35,19 @@ FACE_DATABASE_FILE = "data/face_database/embeddings.json"
 FACES_DIR = "data/faces"
 
 # Backend API Client Configuration
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = "http://127.0.0.1:8085"
 SECURITY_HOME_ID = None  # Configurable Home UUID string (or set via environment variable)
 
 # Security Event Reporting Cooldowns (in seconds)
 UNKNOWN_PERSON_COOLDOWN = 5.0
 MOTION_COOLDOWN = 5.0
 AUTHORIZED_PERSON_COOLDOWN = 10.0
+
+# Video Streaming Configuration
+STREAM_ENABLED = True
+STREAM_JPEG_QUALITY = 80
+STREAM_FPS = 15
+
 
 
 

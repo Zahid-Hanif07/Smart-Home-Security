@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.api.main import app
 from app.services.backend_store import backend_store
-from tests.test_backend import generate_test_token
+from tests.test_backend import generate_test_token, create_test_user, delete_test_user
 
 client = TestClient(app)
 
@@ -28,12 +28,12 @@ class TestSecurityAuthorization(unittest.TestCase):
         backend_store.clear()
 
         # User A Setup
-        self.user_a_id = uuid4()
+        self.user_a_id = create_test_user("usera@example.com", "User A")
         self.token_a = generate_test_token(str(self.user_a_id), "usera@example.com")
         self.headers_a = {"Authorization": f"Bearer {self.token_a}"}
 
         # User B Setup
-        self.user_b_id = uuid4()
+        self.user_b_id = create_test_user("userb@example.com", "User B")
         self.token_b = generate_test_token(str(self.user_b_id), "userb@example.com")
         self.headers_b = {"Authorization": f"Bearer {self.token_b}"}
 
@@ -46,6 +46,11 @@ class TestSecurityAuthorization(unittest.TestCase):
         res_home_b = client.post("/api/homes", json={"name": "Home B", "address": "222 Beta Rd"}, headers=self.headers_b)
         self.assertEqual(res_home_b.status_code, 201)
         self.home_b_id = res_home_b.json()["id"]
+
+    def tearDown(self):
+        delete_test_user(self.user_a_id)
+        delete_test_user(self.user_b_id)
+        backend_store.clear()
 
     def test_01_user_can_access_own_home(self):
         """Verify User A accesses Home A and User B accesses Home B."""

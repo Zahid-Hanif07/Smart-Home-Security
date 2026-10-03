@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 from app.ui.camera_worker import CameraWorker
 from app.ui.styles import DARK_SECURITY_THEME
-from app.ui.registration_dialog import FaceRegistrationDialog
 from app.security.face_database import FaceDatabase
 
 
@@ -210,8 +209,8 @@ class MainWindow(QMainWindow):
         return group
 
     def _create_controls_panel(self) -> QWidget:
-        """Create start/stop camera and face registration action controls."""
-        group = QGroupBox("CAMERA CONTROL & REGISTRATION")
+        """Create camera monitoring action controls."""
+        group = QGroupBox("CAMERA CONTROL & SECURITY MONITORING")
         layout = QVBoxLayout(group)
         layout.setContentsMargins(10, 15, 10, 10)
         layout.setSpacing(10)
@@ -230,12 +229,7 @@ class MainWindow(QMainWindow):
         cam_btn_layout.addWidget(self.btn_start)
         cam_btn_layout.addWidget(self.btn_stop)
 
-        self.btn_register = QPushButton("REGISTER FACE IDENTITY")
-        self.btn_register.setObjectName("btnRegister")
-        self.btn_register.clicked.connect(self.open_registration_dialog)
-
         layout.addLayout(cam_btn_layout)
-        layout.addWidget(self.btn_register)
 
         return group
 
@@ -294,27 +288,6 @@ class MainWindow(QMainWindow):
 
         self.btn_start.setEnabled(True)
         self.btn_stop.setEnabled(False)
-
-    def open_registration_dialog(self) -> None:
-        """Open the face registration dialog."""
-        if self.camera_worker is None or not self.camera_worker.isRunning():
-            QMessageBox.information(
-                self,
-                "Start Camera First",
-                "Please click '[ START CAMERA ]' to activate live video before registering a face.",
-            )
-            return
-
-        dialog = FaceRegistrationDialog(parent=self, camera_worker=self.camera_worker)
-        dialog.person_registered.connect(self.on_person_registered)
-        dialog.exec()
-
-    @Slot(str)
-    def on_person_registered(self, name: str) -> None:
-        """Handle newly registered face person."""
-        self._log_event(f"SUCCESS: New person '{name}' registered in database.")
-        if self.camera_worker and self.camera_worker.isRunning():
-            self.camera_worker.reload_face_database()
 
     @Slot(QImage)
     def on_frame_received(self, q_img: QImage) -> None:

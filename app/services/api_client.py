@@ -13,12 +13,13 @@ class APIClient:
         auth_token: Optional[str] = None,
         timeout: float = 3.0,
         client: Optional[Any] = None,
+        custom_client: Optional[Any] = None,
     ):
         raw_url = base_url or os.getenv("API_BASE_URL") or API_BASE_URL
         self.base_url = raw_url.rstrip("/")
         self.auth_token = auth_token
         self.timeout = timeout
-        self.custom_client = client
+        self.custom_client = custom_client or client
 
     def _get_headers(self) -> Dict[str, str]:
         """Construct headers for HTTP requests."""
@@ -123,4 +124,25 @@ class APIClient:
             return None
         except Exception as e:
             print(f"Backend unavailable: alert could not be reported. Details: {e}")
+            return None
+
+    def get_home_face_records(self, home_id: str) -> Optional[List[Dict[str, Any]]]:
+        """Fetch registered face records for a home from GET /api/homes/{home_id}/face-records."""
+        if not home_id:
+            return None
+
+        url = f"{self.base_url}/api/homes/{home_id}/face-records" if not self.custom_client else f"/api/homes/{home_id}/face-records"
+        try:
+            if self.custom_client:
+                res = self.custom_client.get(url, headers=self._get_headers())
+            else:
+                with httpx.Client(timeout=self.timeout) as c:
+                    res = c.get(url, headers=self._get_headers())
+
+            if res.status_code == 200:
+                return res.json()
+            print(f"APIClient warning: GET {url} returned status code {res.status_code}")
+            return None
+        except Exception as e:
+            print(f"Backend unavailable: face records could not be retrieved. Details: {e}")
             return None

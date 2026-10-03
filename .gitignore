@@ -12,4 +12,5 @@ env/
 *.env
 data/faces/
 data/face_database/
+.gemini/
 

@@ -11,7 +11,7 @@ from app.api.main import app
 from app.services.api_client import APIClient
 from app.security.security_event_service import SecurityEventService
 from app.services.backend_store import backend_store
-from tests.test_backend import generate_test_token
+from tests.test_backend import generate_test_token, create_test_user, delete_test_user
 
 test_app_client = TestClient(app)
 
@@ -20,7 +20,7 @@ class TestStep7Integration(unittest.TestCase):
 
     def setUp(self):
         backend_store.clear()
-        self.user_id = uuid4()
+        self.user_id = create_test_user("user7@example.com", "User 7")
         self.token = generate_test_token(str(self.user_id), "user7@example.com")
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
@@ -33,6 +33,7 @@ class TestStep7Integration(unittest.TestCase):
         self.api_client = APIClient(client=test_app_client, auth_token=self.token)
 
     def tearDown(self):
+        delete_test_user(self.user_id)
         backend_store.clear()
 
     def test_01_api_client_health_check(self):

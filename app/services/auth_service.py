@@ -5,7 +5,7 @@ from app.config.backend_settings import settings
 
 
 class AuthService:
-    """Authentication service for verifying Supabase JWT tokens."""
+    """Authentication service for verifying Supabase JWT tokens strictly with signature verification."""
 
     @staticmethod
     def verify_jwt_token(token: str) -> Dict[str, Any]:
@@ -28,7 +28,7 @@ class AuthService:
             )
 
         try:
-            # 1. Attempt verification with SUPABASE_JWT_SECRET if secret is provided
+            # Strict signature verification with SUPABASE_JWT_SECRET
             payload = jwt.decode(
                 token,
                 settings.SUPABASE_JWT_SECRET,
@@ -43,16 +43,8 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         except jwt.PyJWTError:
-            # 2. Fallback: decode unverified header/payload structure for testing/mock mode if secret matches test fallback
-            try:
-                payload = jwt.decode(token, options={"verify_signature": False})
-                if "sub" in payload:
-                    return payload
-            except Exception:
-                pass
-
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authorization token.",
+                detail="Invalid authorization token signature.",
                 headers={"WWW-Authenticate": "Bearer"},
             )

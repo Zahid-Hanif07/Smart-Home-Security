@@ -1,21 +1,24 @@
+import os
 import cv2
 import numpy as np
+from typing import Optional
 from app.config.settings import (
     FACE_RECOGNITION_THRESHOLD,
     FACE_RECOGNITION_METRIC,
 )
 from app.security.face_embedding_service import FaceEmbeddingService
 from app.security.face_database import FaceDatabase
+from app.services.api_client import APIClient
 
 
 class FaceRecognitionService:
-    """Service class responsible for comparing face embeddings against registered local database entries.
+    """Service class responsible for comparing face embeddings against registered database entries.
 
     Features:
     - Generates 128D embeddings for detected face bounding boxes.
+    - Loads registered embeddings from Supabase PostgreSQL via FastAPI endpoint (or local database fallback).
     - Evaluates distance/similarity against stored person embeddings using cv2.FaceRecognizerSF.match.
     - Determines identity ('Zahid', 'Amish', etc.) or returns 'Unknown'.
-    - Handles empty, corrupt, or updated face databases gracefully.
     """
 
     def __init__(
@@ -24,22 +27,48 @@ class FaceRecognitionService:
         database: FaceDatabase = None,
         threshold: float = FACE_RECOGNITION_THRESHOLD,
         metric: str = FACE_RECOGNITION_METRIC,
+        home_id: Optional[str] = None,
     ):
         self.embedding_service = embedding_service or FaceEmbeddingService()
         self.database = database or FaceDatabase()
         self.threshold = threshold
         self.metric = metric
+        self.home_id = home_id or os.getenv("SECURITY_HOME_ID")
 
         # Cached database entries: dict[str, list[np.ndarray]]
         self.registered_people = {}
         self.reload_database()
 
-    def reload_database(self) -> None:
-        """Reload registered people and embeddings from the local face database."""
+    def reload_database(self, home_id: Optional[str] = None) -> None:
+        """Reload registered people and 128D embeddings from FastAPI/Supabase face_records (or local DB fallback)."""
+        target_home_id = home_id or self.home_id or os.getenv("SECURITY_HOME_ID")
+        people = {}
+
+        if target_home_id:
+            try:
+                auth_token = os.getenv("SUPABASE_ACCESS_TOKEN") or os.getenv("AUTH_TOKEN")
+                client = APIClient(auth_token=auth_token)
+                records = client.get_home_face_records(target_home_id)
+                if records:
+                    for rec in records:
+                        name = rec.get("member_name")
+                        emb_raw = rec.get("embedding")
+                        if name and emb_raw and isinstance(emb_raw, list) and len(emb_raw) == 128:
+                            emb_np = np.array(emb_raw, dtype=np.float32)
+                            if name not in people:
+                                people[name] = []
+                            people[name].append(emb_np)
+                    if people:
+                        self.registered_people = people
+                        print(f"FaceRecognitionService loaded {len(people)} registered person(s) from Supabase/FastAPI.")
+                        return
+            except Exception as e:
+                print(f"Notice: Could not load embeddings from FastAPI/Supabase ({e}). Checking local fallback...")
+
         try:
             self.registered_people = self.database.load_database()
             count = len(self.registered_people)
-            print(f"FaceRecognitionService loaded {count} registered person(s).")
+            print(f"FaceRecognitionService loaded {count} registered person(s) from local database fallback.")
         except Exception as e:
             print(f"Error reloading face database in recognition service: {e}")
             self.registered_people = {}

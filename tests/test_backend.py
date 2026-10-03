@@ -2,7 +2,7 @@ import sys
 import os
 import jwt
 import unittest
-from uuid import uuid4
+from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -10,8 +10,43 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.api.main import app
 from app.config.backend_settings import settings
 from app.services.backend_store import backend_store
+from app.repositories.home_repository import is_supabase_configured
+from app.database.supabase_client import SupabaseClientManager
 
 client = TestClient(app)
+
+
+def create_test_user(email: str = "testuser@example.com", name: str = "Test User") -> UUID:
+    """Create a test user. If real Supabase is configured, create a real Supabase Auth user
+    which automatically triggers creation of a matching public.profiles record.
+    Otherwise return a synthetic UUID for in-memory mode."""
+    if is_supabase_configured():
+        admin_client = SupabaseClientManager.get_admin_client()
+        if admin_client:
+            unique_email = f"test_{uuid4().hex[:8]}_{email}"
+            try:
+                user_res = admin_client.auth.admin.create_user({
+                    "email": unique_email,
+                    "password": "TestPassword123!",
+                    "email_confirm": True,
+                    "user_metadata": {"name": name},
+                })
+                return UUID(user_res.user.id)
+            except Exception as e:
+                print(f"[TEST WARNING] Failed to create Supabase Auth test user: {e}")
+    return uuid4()
+
+
+def delete_test_user(user_id: UUID) -> None:
+    """Clean up test user. If real Supabase is configured, delete the Supabase Auth user
+    (which cascades and deletes profile, homes, members, devices, logs, alerts, faces)."""
+    if is_supabase_configured():
+        admin_client = SupabaseClientManager.get_admin_client()
+        if admin_client:
+            try:
+                admin_client.auth.admin.delete_user(str(user_id))
+            except Exception:
+                pass
 
 
 def generate_test_token(user_id: str, email: str = "testuser@example.com") -> str:
@@ -28,9 +63,13 @@ class TestBackendAPI(unittest.TestCase):
 
     def setUp(self):
         backend_store.clear()
-        self.user_id = uuid4()
+        self.user_id = create_test_user("zahid@example.com", "Test User")
         self.token = generate_test_token(str(self.user_id), "zahid@example.com")
         self.headers = {"Authorization": f"Bearer {self.token}"}
+
+    def tearDown(self):
+        delete_test_user(self.user_id)
+        backend_store.clear()
 
     def test_01_health_and_root(self):
         """Test 1: Health check & root endpoints."""

@@ -15,12 +15,14 @@ class SecurityService:
     def __init__(self, home_id: Optional[str] = None):
         self.motion_service = MotionDetectionService()
         self.face_service = FaceDetectionService()
-        self.recognition_service = FaceRecognitionService()
+        self.recognition_service = FaceRecognitionService(home_id=home_id)
         self.event_service = SecurityEventService(home_id=home_id)
 
     def set_home_id(self, home_id: Optional[str]) -> None:
-        """Update backend home ID for security event reporting."""
+        """Update backend home ID for security event reporting and recognition reload."""
         self.event_service.set_home_id(home_id)
+        self.recognition_service.home_id = home_id
+        self.recognition_service.reload_database(home_id=home_id)
 
     def process_frame(self, frame):
         """Process video frame through active security modules."""
