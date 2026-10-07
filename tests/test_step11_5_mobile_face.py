@@ -208,6 +208,33 @@ class TestStep11_5_MobileFaceEnrollment(unittest.TestCase):
         self.assertIn("Zahid", service.registered_people)
         self.assertEqual(len(service.registered_people["Zahid"][0]), 128)
 
+    def test_06_clear_member_faces_endpoint(self):
+        """Test DELETE /api/members/{member_id}/faces clears all face records for member."""
+        res_home = client.post("/api/homes", json={"name": "Re-registration Residence"}, headers=self.headers1)
+        home_id = res_home.json()["id"]
+
+        res_m = client.post(
+            f"/api/homes/{home_id}/members",
+            json={"name": "Zahid"},
+            headers=self.headers1,
+        )
+        member_id = res_m.json()["id"]
+
+        # Register 2 sample face records
+        client.post(f"/api/members/{member_id}/register-face", json={"embedding": [0.1] * 128}, headers=self.headers1)
+        client.post(f"/api/members/{member_id}/register-face", json={"embedding": [0.2] * 128}, headers=self.headers1)
+
+        res_faces = client.get(f"/api/members/{member_id}/faces", headers=self.headers1)
+        self.assertEqual(len(res_faces.json()), 2)
+
+        # Clear faces
+        res_clear = client.delete(f"/api/members/{member_id}/faces", headers=self.headers1)
+        self.assertEqual(res_clear.status_code, 204)
+
+        # Verify faces are cleared
+        res_faces_after = client.get(f"/api/members/{member_id}/faces", headers=self.headers1)
+        self.assertEqual(len(res_faces_after.json()), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

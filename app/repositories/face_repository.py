@@ -152,5 +152,23 @@ class FaceRepository:
         del self._in_memory_faces[face_id]
         return True
 
+    def delete_member_faces(self, member_id: UUID, requesting_user_id: UUID) -> bool:
+        member_repository.get_member_by_id(member_id, requesting_user_id)
+        client = self._get_client()
+        if client:
+            try:
+                client.table("face_records").delete().eq("member_id", str(member_id)).execute()
+                return True
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Database error clearing member face records: {str(e)}",
+                )
+
+        to_remove = [fid for fid, f in self._in_memory_faces.items() if f["member_id"] == member_id]
+        for fid in to_remove:
+            del self._in_memory_faces[fid]
+        return True
+
 
 face_repository = FaceRepository()

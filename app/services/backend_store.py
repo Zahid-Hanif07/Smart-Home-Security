@@ -134,6 +134,9 @@ class BackendStore:
     def delete_face_record(self, face_id: Any, requesting_user_id: Any) -> bool:
         return face_repository.delete_face_record(face_id=_to_uuid(face_id), requesting_user_id=_to_uuid(requesting_user_id))
 
+    def delete_member_faces(self, member_id: Any, requesting_user_id: Any) -> bool:
+        return face_repository.delete_member_faces(member_id=_to_uuid(member_id), requesting_user_id=_to_uuid(requesting_user_id))
+
     # -------------------------------------------------------------------------
     # DEVICES
     # -------------------------------------------------------------------------

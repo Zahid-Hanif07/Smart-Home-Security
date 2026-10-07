@@ -225,4 +225,32 @@ class MembersProvider extends ChangeNotifier {
       return false;
     }
   }
+
+  Future<bool> clearMemberFaces(String? token, String memberId) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiClient.clearMemberFaces(memberId, token);
+      _memberFaces = [];
+
+      if (_selectedMember?.id == memberId) {
+        _selectedMember = _selectedMember!.copyWith(faceCount: 0);
+        final idx = _members.indexWhere((m) => m.id == memberId);
+        if (idx != -1) {
+          _members[idx] = _selectedMember!;
+        }
+      }
+
+      _isSaving = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isSaving = false;
+      _errorMessage = 'Failed to clear previous face records: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
+  }
 }

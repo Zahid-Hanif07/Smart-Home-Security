@@ -10,7 +10,7 @@ class ApiClient {
 
   ApiClient({
     http.Client? client,
-    this.timeout = const Duration(seconds: 5),
+    this.timeout = const Duration(seconds: 15),
   }) : _client = client ?? http.Client();
 
   Map<String, String> _buildHeaders(String? token) {
@@ -169,6 +169,10 @@ class ApiClient {
 
   Future<dynamic> deleteFace(String faceId, String? token) async {
     return await delete('/api/faces/$faceId', token: token);
+  }
+
+  Future<dynamic> clearMemberFaces(String memberId, String? token) async {
+    return await delete('/api/members/$memberId/faces', token: token);
   }
 
   dynamic _processResponse(http.Response response) {

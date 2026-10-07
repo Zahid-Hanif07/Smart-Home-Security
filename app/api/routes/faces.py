@@ -155,3 +155,13 @@ def delete_face_record(
     """Delete a face record."""
     backend_store.delete_face_record(face_id=face_id, requesting_user_id=user_id)
     return None
+
+
+@router.delete("/members/{member_id}/faces", status_code=status.HTTP_204_NO_CONTENT)
+def clear_member_faces(
+    member_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Clear all face records belonging to a home member."""
+    backend_store.delete_member_faces(member_id=member_id, requesting_user_id=user_id)
+    return None
