@@ -5,6 +5,10 @@ class ApiConfig {
   static const String androidEmulatorUrl = 'http://10.0.2.2:8085';
   static const String localhostUrl = 'http://127.0.0.1:8085';
 
+  // Supabase Configuration
+  static const String supabaseUrl = 'https://fbwbgcaviawlqigemrdg.supabase.co';
+  static const String supabaseAnonKey = 'sb_publishable_hLZSHbWwOCq2HReqf6hW1A_PciCVbFf';
+
   static String? _customBaseUrl;
 
   static void setCustomBaseUrl(String url) {
