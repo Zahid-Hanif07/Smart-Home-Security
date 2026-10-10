@@ -106,7 +106,11 @@ def register_member_face(
             embedding_list = emb_vector.tolist()
             if not image_path:
                 image_path = f"data/faces/{member['name']}/enrollment_{member_id}.jpg"
-                face_db.save_person(name=member["name"], embeddings=[emb_vector], face_images=[frame])
+                face_db.append_person_sample(
+                    name=member["name"],
+                    embedding=emb_vector,
+                    face_image=frame,
+                )
 
         except HTTPException:
             raise
@@ -163,5 +167,11 @@ def clear_member_faces(
     user_id: UUID = Depends(get_current_user_id),
 ):
     """Clear all face records belonging to a home member."""
+    member = backend_store.get_member_by_id(member_id=member_id, requesting_user_id=user_id)
     backend_store.delete_member_faces(member_id=member_id, requesting_user_id=user_id)
+    try:
+        _, _, face_db = get_face_services()
+        face_db.remove_person(member["name"])
+    except Exception as e:
+        print(f"Warning: Failed to clear local face embeddings for member {member_id}: {e}")
     return None

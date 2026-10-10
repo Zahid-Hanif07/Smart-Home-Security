@@ -9,32 +9,24 @@ import 'package:mobile/features/auth/widgets/auth_text_field.dart';
 import 'package:mobile/features/auth/widgets/auth_button.dart';
 import 'package:mobile/providers/auth_provider.dart';
 
-/// LoginScreen - StatelessWidget Mobile Identity
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
+  Future<void> _handleLogin(BuildContext context, AuthProvider authProvider) async {
+    if (!authProvider.loginFormKey.currentState!.validate()) return;
+    final success = await authProvider.login(
+      authProvider.loginEmailController.text,
+      authProvider.loginPasswordController.text,
+    );
+
+    if (success && context.mounted) {
+      authProvider.resetLoginForm();
+      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    final obscurePasswordNotifier = ValueNotifier<bool>(true);
-
-    Future<void> handleLogin() async {
-      if (!formKey.currentState!.validate()) return;
-
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final success = await authProvider.login(
-        emailController.text,
-        passwordController.text,
-      );
-
-      if (!context.mounted) return;
-      if (success) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.home);
-      }
-    }
-
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
@@ -47,14 +39,13 @@ class LoginScreen extends StatelessWidget {
               vertical: AppSpacing.xl,
             ),
             child: Form(
-              key: formKey,
+              key: authProvider.loginFormKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const AuthHeader(
                     title: 'Welcome Back',
-                    subtitle:
-                        'Sign in to access your smart home security ecosystem',
+                    subtitle: 'Sign in to access your smart home security ecosystem',
                     icon: Icons.shield_outlined,
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -67,9 +58,7 @@ class LoginScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                       decoration: BoxDecoration(
                         color: AppColors.champagneSoft,
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.radiusSm,
-                        ),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                         border: Border.all(
                           color: AppColors.error.withValues(alpha: 0.3),
                           width: 1.0,
@@ -99,7 +88,7 @@ class LoginScreen extends StatelessWidget {
 
                   // Email input field
                   AuthTextField(
-                    controller: emailController,
+                    controller: authProvider.loginEmailController,
                     label: 'Email Address',
                     hint: 'user@example.com',
                     prefixIcon: Icons.mail_outline_rounded,
@@ -108,7 +97,7 @@ class LoginScreen extends StatelessWidget {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your email address.';
                       }
-                      if (!value.contains('@')) {
+                      if (!value.trim().contains('@')) {
                         return 'Please enter a valid email address.';
                       }
                       return null;
@@ -118,10 +107,10 @@ class LoginScreen extends StatelessWidget {
 
                   // Password input field with ValueListenableBuilder toggle
                   ValueListenableBuilder<bool>(
-                    valueListenable: obscurePasswordNotifier,
+                    valueListenable: authProvider.loginPasswordObscured,
                     builder: (context, isObscured, _) {
                       return AuthTextField(
-                        controller: passwordController,
+                        controller: authProvider.loginPasswordController,
                         label: 'Password',
                         hint: '••••••••',
                         prefixIcon: Icons.lock_outline_rounded,
@@ -135,7 +124,7 @@ class LoginScreen extends StatelessWidget {
                             size: 20,
                           ),
                           onPressed: () {
-                            obscurePasswordNotifier.value = !isObscured;
+                            authProvider.toggleLoginPasswordVisibility();
                           },
                         ),
                         validator: (value) {
@@ -153,7 +142,7 @@ class LoginScreen extends StatelessWidget {
                   AuthButton(
                     text: 'Sign In',
                     isLoading: authProvider.isLoading,
-                    onPressed: handleLogin,
+                    onPressed: () => _handleLogin(context, authProvider),
                   ),
                   const SizedBox(height: AppSpacing.lg),
 

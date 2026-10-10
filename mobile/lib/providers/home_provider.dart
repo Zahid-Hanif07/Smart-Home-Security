@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/models/home_model.dart';
@@ -22,6 +22,24 @@ class HomeProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isRefreshing = false;
   String? _errorMessage;
+
+  final addHomeFormKey = GlobalKey<FormState>();
+  final addHomeNameController = TextEditingController();
+  final addHomeAddressController = TextEditingController();
+  bool _homeManagementLoaded = false;
+  bool _dashboardLoadStarted = false;
+
+  Future<void> initializeDashboard(String? token) async {
+    if (_dashboardLoadStarted || (_isBackendConnected && !_isCheckingBackend)) return;
+    _dashboardLoadStarted = true;
+    await loadHomeData(token);
+  }
+
+  Future<void> initializeHomeManagement(String? token) async {
+    if (_homeManagementLoaded) return;
+    _homeManagementLoaded = true;
+    await fetchHomes(token);
+  }
 
   HomeProvider({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
@@ -169,5 +187,53 @@ class HomeProvider extends ChangeNotifier {
   void setCurrentHome(HomeModel home) {
     _currentHome = home;
     notifyListeners();
+  }
+
+  /// Create a new home via POST /api/homes
+  Future<HomeModel?> createHome(String? token, String name, String? address) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final body = {
+        'name': name.trim(),
+        'address': address?.trim(),
+      };
+      final res = await _apiClient.post('/api/homes', body: body, token: token);
+      if (res is Map<String, dynamic>) {
+        final newHome = HomeModel.fromJson(res);
+        _homes.add(newHome);
+        _currentHome = newHome;
+        addHomeNameController.clear();
+        addHomeAddressController.clear();
+        addHomeFormKey.currentState?.reset();
+        _isLoading = false;
+        notifyListeners();
+        return newHome;
+      }
+      throw ApiException(message: 'Invalid response creating home.');
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e is ApiException ? e.message : 'Failed to create home: ${e.toString()}';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Select active home and refresh events
+  Future<void> selectHome(HomeModel home, String? token) async {
+    _currentHome = home;
+    notifyListeners();
+    if (_isBackendConnected) {
+      await fetchRecentEvents(token);
+    }
+  }
+
+  @override
+  void dispose() {
+    addHomeNameController.dispose();
+    addHomeAddressController.dispose();
+    super.dispose();
   }
 }

@@ -1,11 +1,14 @@
 import os
+import time
 import cv2
 import numpy as np
 from typing import Optional
 from app.config.settings import (
     FACE_RECOGNITION_THRESHOLD,
     FACE_RECOGNITION_METRIC,
+    SECURITY_HOME_ID,
 )
+from app.config.backend_settings import settings as backend_settings
 from app.security.face_embedding_service import FaceEmbeddingService
 from app.security.face_database import FaceDatabase
 from app.services.api_client import APIClient
@@ -33,20 +36,27 @@ class FaceRecognitionService:
         self.database = database or FaceDatabase()
         self.threshold = threshold
         self.metric = metric
-        self.home_id = home_id or os.getenv("SECURITY_HOME_ID")
+        self.home_id = home_id or os.getenv("SECURITY_HOME_ID") or SECURITY_HOME_ID
 
         # Cached database entries: dict[str, list[np.ndarray]]
         self.registered_people = {}
+        self._loaded_from_remote = False
+        self._last_local_database_check = 0.0
+        self._local_database_mtime = None
         self.reload_database()
 
     def reload_database(self, home_id: Optional[str] = None) -> None:
         """Reload registered people and 128D embeddings from FastAPI/Supabase face_records (or local DB fallback)."""
-        target_home_id = home_id or self.home_id or os.getenv("SECURITY_HOME_ID")
+        target_home_id = home_id or self.home_id or os.getenv("SECURITY_HOME_ID") or SECURITY_HOME_ID
         people = {}
 
         if target_home_id:
             try:
-                auth_token = os.getenv("SUPABASE_ACCESS_TOKEN") or os.getenv("AUTH_TOKEN")
+                auth_token = (
+                    os.getenv("SUPABASE_ACCESS_TOKEN")
+                    or os.getenv("AUTH_TOKEN")
+                    or backend_settings.SUPABASE_ACCESS_TOKEN
+                )
                 client = APIClient(auth_token=auth_token)
                 records = client.get_home_face_records(target_home_id)
                 if records:
@@ -60,18 +70,51 @@ class FaceRecognitionService:
                             people[name].append(emb_np)
                     if people:
                         self.registered_people = people
+                        self._loaded_from_remote = True
+                        self._remember_local_database_mtime()
                         print(f"FaceRecognitionService loaded {len(people)} registered person(s) from Supabase/FastAPI.")
                         return
+                print(
+                    f"FaceRecognitionService found no usable face records for home {target_home_id}; "
+                    "checking the local face database."
+                )
             except Exception as e:
                 print(f"Notice: Could not load embeddings from FastAPI/Supabase ({e}). Checking local fallback...")
+        else:
+            print(
+                "SECURITY_HOME_ID is not configured; the Python dashboard cannot select "
+                "Supabase face records and will use the local face database."
+            )
 
         try:
             self.registered_people = self.database.load_database()
+            self._loaded_from_remote = False
+            self._remember_local_database_mtime()
             count = len(self.registered_people)
             print(f"FaceRecognitionService loaded {count} registered person(s) from local database fallback.")
         except Exception as e:
             print(f"Error reloading face database in recognition service: {e}")
             self.registered_people = {}
+
+    def _remember_local_database_mtime(self) -> None:
+        try:
+            self._local_database_mtime = os.path.getmtime(self.database.db_file)
+        except OSError:
+            self._local_database_mtime = None
+
+    def _refresh_local_database_if_changed(self) -> None:
+        """Pick up mobile enrollments written by the local API while the camera runs."""
+        now = time.monotonic()
+        if now - self._last_local_database_check < 2.0:
+            return
+        self._last_local_database_check = now
+        try:
+            modified = os.path.getmtime(self.database.db_file)
+        except OSError:
+            return
+        if modified == self._local_database_mtime:
+            return
+        self.reload_database()
 
     def recognize_face(self, frame: np.ndarray, face_info: dict) -> dict:
         """Recognize identity for a single detected face.
@@ -90,6 +133,7 @@ class FaceRecognitionService:
                     "box": tuple         # (x, y, w, h)
                 }
         """
+        self._refresh_local_database_if_changed()
         box = face_info.get("box", (0, 0, 0, 0))
         detection_confidence = face_info.get("confidence", 0.0)
 

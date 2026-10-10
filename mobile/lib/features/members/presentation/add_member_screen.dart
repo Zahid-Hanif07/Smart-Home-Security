@@ -17,9 +17,6 @@ class AddMemberScreen extends StatelessWidget {
     final homeProvider = Provider.of<HomeProvider>(context);
     final membersProvider = Provider.of<MembersProvider>(context);
 
-    final nameController = TextEditingController();
-    final relationController = TextEditingController();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -91,7 +88,7 @@ class AddMemberScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               TextField(
-                controller: nameController,
+                controller: membersProvider.addMemberNameController,
                 decoration: InputDecoration(
                   hintText: 'e.g. Amish',
                   hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
@@ -108,7 +105,7 @@ class AddMemberScreen extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
-                    borderSide: const BorderSide(color: AppColors.black, width: 1.5),
+                    borderSide: const BorderSide(color: AppColors.emeraldInk, width: 1.5),
                   ),
                 ),
               ),
@@ -125,7 +122,7 @@ class AddMemberScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               TextField(
-                controller: relationController,
+                controller: membersProvider.addMemberRelationController,
                 decoration: InputDecoration(
                   hintText: 'e.g. Brother, Sister, Mother, Spouse',
                   hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
@@ -142,7 +139,7 @@ class AddMemberScreen extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
-                    borderSide: const BorderSide(color: AppColors.black, width: 1.5),
+                    borderSide: const BorderSide(color: AppColors.emeraldInk, width: 1.5),
                   ),
                 ),
               ),
@@ -155,8 +152,18 @@ class AddMemberScreen extends StatelessWidget {
                 isLoading: membersProvider.isSaving,
                 onPressed: () async {
                   final homeId = homeProvider.currentHome?.id ?? '';
-                  final name = nameController.text;
-                  final relation = relationController.text;
+                  if (homeId.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please select or create a home first.'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final name = membersProvider.addMemberNameController.text;
+                  final relation = membersProvider.addMemberRelationController.text;
 
                   final newMember = await membersProvider.addMember(
                     authProvider.token,

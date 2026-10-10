@@ -1,12 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import 'package:mobile/app/app.dart';
+import 'package:mobile/features/splash/presentation/splash_screen.dart';
 
 void main() {
-  testWidgets('1. App launches and renders splash screen title', (WidgetTester tester) async {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    try {
+      await Supabase.initialize(
+        url: 'https://example.supabase.co',
+        anonKey: 'mock_anon_key',
+      );
+    } catch (_) {}
+  });
+
+  testWidgets('1. App launches and renders OTTO splash screen', (WidgetTester tester) async {
     await tester.pumpWidget(const SmartHomeApp());
-    expect(find.text('SMART HOME SECURITY'), findsOneWidget);
-    expect(find.text('AI Security & Voice Assistant Mobile Engine'), findsOneWidget);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    expect(find.byType(SplashScreen), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
   });
 }
-

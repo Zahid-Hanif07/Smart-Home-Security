@@ -122,6 +122,50 @@ class FaceDatabase:
             print(f"Error saving person '{clean_name}' to face database: {e}")
             return False
 
+    def append_person_sample(self, name: str, embedding: np.ndarray, face_image: np.ndarray = None) -> bool:
+        """Append one externally captured sample without replacing prior samples.
+
+        The desktop registration dialog intentionally uses ``save_person`` to
+        replace a person's full enrollment. Mobile enrollment sends one sample
+        per API request, so its local fallback needs append semantics instead.
+        """
+        if not name or not name.strip() or embedding is None:
+            return False
+
+        clean_name = name.strip()
+        try:
+            current_data = {}
+            if os.path.exists(self.db_file):
+                try:
+                    with open(self.db_file, "r", encoding="utf-8") as file:
+                        current_data = json.load(file)
+                except Exception:
+                    current_data = {}
+
+            record = current_data.get(clean_name, {})
+            stored_embeddings = record.get("embeddings", []) if isinstance(record, dict) else []
+            if not isinstance(stored_embeddings, list):
+                stored_embeddings = []
+            stored_embeddings.append(np.asarray(embedding, dtype=np.float32).reshape(-1).tolist())
+            current_data[clean_name] = {
+                **(record if isinstance(record, dict) else {}),
+                "embeddings": stored_embeddings,
+                "sample_count": len(stored_embeddings),
+            }
+
+            with open(self.db_file, "w", encoding="utf-8") as file:
+                json.dump(current_data, file, indent=4)
+
+            if face_image is not None and face_image.size > 0:
+                person_dir = os.path.join(self.faces_dir, clean_name)
+                os.makedirs(person_dir, exist_ok=True)
+                image_path = os.path.join(person_dir, f"sample_{len(stored_embeddings):02d}.jpg")
+                cv2.imwrite(image_path, face_image)
+            return True
+        except Exception as e:
+            print(f"Error appending face sample for '{clean_name}': {e}")
+            return False
+
     def remove_person(self, name: str) -> bool:
         """Remove a person and their stored face samples from the database.
 

@@ -1,11 +1,29 @@
 from typing import List
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.dependencies import get_current_user_id
 from app.models.member import MemberCreate, MemberUpdate, MemberResponse
 from app.services.backend_store import backend_store
 
 router = APIRouter()
+
+
+@router.post("/homes//members", include_in_schema=False)
+@router.post("/homes/members", include_in_schema=False)
+def invalid_home_id_member_creation():
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="home_id path parameter cannot be empty. Please select or create a home first.",
+    )
+
+
+@router.get("/homes//members", include_in_schema=False)
+@router.get("/homes/members", include_in_schema=False)
+def invalid_home_id_member_listing():
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="home_id path parameter cannot be empty. Please select or create a home first.",
+    )
 
 
 @router.post("/homes/{home_id}/members", response_model=MemberResponse, status_code=status.HTTP_201_CREATED)

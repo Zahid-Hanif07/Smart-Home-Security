@@ -12,28 +12,17 @@ import 'package:mobile/features/members/widgets/member_empty_state.dart';
 class MembersScreen extends StatelessWidget {
   const MembersScreen({super.key});
 
-  void _initMembers(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
-      final membersProvider = Provider.of<MembersProvider>(context, listen: false);
-
-      final homeId = homeProvider.currentHome?.id;
-      if (homeId != null && homeId.isNotEmpty) {
-        membersProvider.loadMembers(authProvider.token, homeId);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    _initMembers(context);
-
     final authProvider = Provider.of<AuthProvider>(context);
     final homeProvider = Provider.of<HomeProvider>(context);
     final membersProvider = Provider.of<MembersProvider>(context);
 
-    final homeId = homeProvider.currentHome?.id ?? '';
+    final currentHome = homeProvider.currentHome;
+    final homeId = currentHome?.id ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      membersProvider.ensureMembersLoaded(authProvider.token, homeId);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -53,11 +42,11 @@ class MembersScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.black,
+          color: AppColors.emeraldInk,
           backgroundColor: AppColors.surface,
           onRefresh: () async {
             if (homeId.isNotEmpty) {
-              await membersProvider.loadMembers(authProvider.token, homeId);
+              await membersProvider.loadMembers(authProvider.token, homeId, forceRefresh: true);
             }
           },
           child: SingleChildScrollView(
@@ -70,45 +59,68 @@ class MembersScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          homeProvider.currentHome?.name ?? 'Main Residence',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            currentHome?.name ?? 'No Home Selected',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${membersProvider.members.length} Members Enrolled',
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                          const SizedBox(height: 2),
+                          Text(
+                            '${membersProvider.members.length} Members Enrolled',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: AppSpacing.sm),
                     ElevatedButton.icon(
                       onPressed: () {
+                        if (homeId.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please select or create a home first.'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                          return;
+                        }
                         Navigator.of(context).pushNamed(AppRoutes.addMember);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.emeraldInk,
                         foregroundColor: AppColors.white,
+                        minimumSize: Size.zero,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
+                          borderRadius: BorderRadius.circular(
+                            AppSpacing.buttonRadius,
+                          ),
                         ),
                       ),
                       icon: const Icon(Icons.add_rounded, size: 18),
                       label: const Text(
                         'Add Member',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -122,26 +134,77 @@ class MembersScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     margin: const EdgeInsets.only(bottom: AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSoft,
-                      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      membersProvider.errorMessage!,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 13,
+                      color: AppColors.champagneSoft,
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.cardRadius,
                       ),
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: AppColors.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            membersProvider.errorMessage!,
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
 
-                // Loading Indicator or List
+                // Loading Indicator or Empty State or List
                 if (membersProvider.isLoading) ...[
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
                     child: Center(
-                      child: CircularProgressIndicator(color: AppColors.black),
+                      child: CircularProgressIndicator(color: AppColors.emeraldInk),
+                    ),
+                  ),
+                ] else if (homeId.isEmpty) ...[
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.home_work_outlined, size: 48, color: AppColors.textMuted),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No Home Selected',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Select or create a home before managing family members.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed(AppRoutes.homes);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.emeraldInk,
+                              foregroundColor: AppColors.champagne,
+                            ),
+                            child: const Text('Manage Homes'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ] else if (membersProvider.members.isEmpty) ...[

@@ -11,33 +11,22 @@ import 'package:mobile/features/home/widgets/recent_activity.dart';
 import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/providers/home_provider.dart';
 
-/// HomeScreen - Step 10 & 11 Real Mobile Security Dashboard (StatelessWidget)
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  void _initHomeState(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-      if (!homeProvider.isBackendConnected && !homeProvider.isCheckingBackend) {
-        await homeProvider.loadHomeData(authProvider.token);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    _initHomeState(context);
-
     final authProvider = Provider.of<AuthProvider>(context);
     final homeProvider = Provider.of<HomeProvider>(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      homeProvider.initializeDashboard(authProvider.token);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.black,
+          color: AppColors.emeraldInk,
           backgroundColor: AppColors.surface,
           onRefresh: () async {
             await homeProvider.refresh(authProvider.token);
@@ -54,7 +43,7 @@ class HomeScreen extends StatelessWidget {
                 // 1. Mobile Header (Home Identity & Profile)
                 HomeHeader(
                   user: authProvider.currentUser,
-                  homeName: homeProvider.currentHome?.name ?? 'Main Residence',
+                  homeName: homeProvider.currentHome?.name ?? 'Select or Add Home',
                   isBackendConnected: homeProvider.isBackendConnected,
                   onLogout: () async {
                     await authProvider.logout();
@@ -77,7 +66,7 @@ class HomeScreen extends StatelessWidget {
 
                 // 3. Security Overview Status
                 SecurityStatusCard(
-                  homeName: homeProvider.currentHome?.name ?? 'Main Residence',
+                  homeName: homeProvider.currentHome?.name ?? 'No Active Home',
                   status: homeProvider.securityStatus,
                   eventCount: homeProvider.recentEvents.length,
                 ),
@@ -201,6 +190,8 @@ class HomeScreen extends StatelessWidget {
           onDestinationSelected: (index) {
             if (index == 1) {
               Navigator.of(context).pushNamed(AppRoutes.members);
+            } else if (index == 2) {
+              Navigator.of(context).pushNamed(AppRoutes.homes);
             }
           },
           destinations: const [
@@ -215,9 +206,9 @@ class HomeScreen extends StatelessWidget {
               label: 'Members',
             ),
             NavigationDestination(
-              icon: Icon(Icons.tune_outlined),
-              selectedIcon: Icon(Icons.tune_rounded),
-              label: 'Settings',
+              icon: Icon(Icons.home_work_outlined),
+              selectedIcon: Icon(Icons.home_work_rounded),
+              label: 'Properties',
             ),
           ],
         ),

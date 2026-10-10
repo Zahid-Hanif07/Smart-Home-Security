@@ -1,5 +1,7 @@
 """Configuration settings for Smart Home Security Application."""
 
+from app.config.backend_settings import settings as backend_settings
+
 # Webcam Index (0 is usually the built-in laptop camera)
 CAMERA_INDEX = 0
 
@@ -35,8 +37,8 @@ FACE_DATABASE_FILE = "data/face_database/embeddings.json"
 FACES_DIR = "data/faces"
 
 # Backend API Client Configuration
-API_BASE_URL = "http://127.0.0.1:8085"
-SECURITY_HOME_ID = None  # Configurable Home UUID string (or set via environment variable)
+API_BASE_URL = backend_settings.API_BASE_URL
+SECURITY_HOME_ID = backend_settings.SECURITY_HOME_ID
 
 # Security Event Reporting Cooldowns (in seconds)
 UNKNOWN_PERSON_COOLDOWN = 5.0

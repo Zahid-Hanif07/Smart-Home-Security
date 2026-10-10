@@ -1,4 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/models/member_model.dart';
 import 'package:mobile/models/face_record_model.dart';
@@ -13,6 +16,127 @@ class MembersProvider extends ChangeNotifier {
   bool _isSaving = false;
   String? _errorMessage;
   String? _successMessage;
+  final addMemberNameController = TextEditingController();
+  final addMemberRelationController = TextEditingController();
+  String? _lastLoadedHomeId;
+  bool _hasLoadedMembers = false;
+  CameraController? cameraController;
+  Future<void>? cameraInitialization;
+  bool isCameraInitializing = true;
+  String? cameraError;
+  int currentFaceSamples = 0;
+  final int targetFaceSamples = 8;
+  bool faceRegistrationSuccess = false;
+  bool isCapturingFace = false;
+  String faceStatusText = 'Position your face inside the frame';
+  bool _cameraInitializationStarted = false;
+  int _cameraRequestId = 0;
+  String? _facesLoadedForMemberId;
+  String? _facesLoadingForMemberId;
+
+  Future<void> initializeCamera() async {
+    if (_cameraInitializationStarted) return;
+    _cameraInitializationStarted = true;
+    final requestId = ++_cameraRequestId;
+    isCameraInitializing = true;
+    cameraError = null;
+    notifyListeners();
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        cameraError = 'No camera found on device. Camera is required to register face samples.';
+        isCameraInitializing = false;
+        notifyListeners();
+        return;
+      }
+      final camera = cameras.firstWhere(
+        (item) => item.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      cameraInitialization = controller.initialize();
+      await cameraInitialization;
+      if (requestId != _cameraRequestId) {
+        await controller.dispose();
+        return;
+      }
+      cameraController = controller;
+      isCameraInitializing = false;
+      notifyListeners();
+    } catch (error) {
+      if (requestId != _cameraRequestId) return;
+      cameraError = 'Camera error: $error\nPlease check camera permissions.';
+      isCameraInitializing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> retryCameraInitialization() async {
+    _cameraRequestId++;
+    await cameraController?.dispose();
+    cameraController = null;
+    cameraInitialization = null;
+    _cameraInitializationStarted = false;
+    await initializeCamera();
+  }
+
+  Future<void> closeFaceRegistration() async {
+    _cameraRequestId++;
+    await cameraController?.dispose();
+    cameraController = null;
+    cameraInitialization = null;
+    _cameraInitializationStarted = false;
+    isCameraInitializing = true;
+    cameraError = null;
+    currentFaceSamples = 0;
+    faceRegistrationSuccess = false;
+    isCapturingFace = false;
+    faceStatusText = 'Position your face inside the frame';
+    notifyListeners();
+  }
+
+  Future<void> captureFaceSample(String? token, String memberId) async {
+    final controller = cameraController;
+    if (controller == null || !controller.value.isInitialized || isCapturingFace) return;
+    isCapturingFace = true;
+    faceStatusText = 'Processing sample...';
+    notifyListeners();
+    try {
+      final image = await controller.takePicture();
+      final bytes = await image.readAsBytes();
+      final success = await registerFace(token, memberId, base64Encode(bytes));
+      if (success) {
+        currentFaceSamples++;
+        if (currentFaceSamples >= targetFaceSamples) {
+          faceRegistrationSuccess = true;
+          faceStatusText = 'Face registered successfully!';
+        } else {
+          faceStatusText = 'Sample $currentFaceSamples of $targetFaceSamples captured. Keep looking at camera.';
+        }
+      } else {
+        faceStatusText = errorMessage ?? 'Sample capture failed. Please try again.';
+      }
+    } catch (error) {
+      faceStatusText = 'Failed to capture image: $error';
+    } finally {
+      isCapturingFace = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> ensureMembersLoaded(String? token, String? homeId) async {
+    final id = homeId ?? '';
+    if (id == _lastLoadedHomeId && (isLoading || _hasLoadedMembers)) return;
+    if (id != _lastLoadedHomeId) _hasLoadedMembers = false;
+    _lastLoadedHomeId = id;
+    if (id.isEmpty) _hasLoadedMembers = true;
+    await loadMembers(token, id);
+  }
 
   MembersProvider({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
@@ -33,18 +157,41 @@ class MembersProvider extends ChangeNotifier {
   void selectMember(MemberModel? member) {
     _selectedMember = member;
     _memberFaces = [];
+    _facesLoadedForMemberId = null;
+    _facesLoadingForMemberId = null;
     notifyListeners();
   }
 
-  Future<void> loadMembers(String? token, String homeId) async {
+  Future<void> ensureMemberFacesLoaded(String? token, String memberId) async {
+    if (_facesLoadedForMemberId == memberId || _facesLoadingForMemberId == memberId) return;
+    _facesLoadingForMemberId = memberId;
+    await loadMemberFaces(token, memberId);
+    _facesLoadingForMemberId = null;
+    _facesLoadedForMemberId = memberId;
+  }
+
+  Future<void> loadMembers(String? token, String homeId, {bool forceRefresh = false}) async {
+    final cleanHomeId = homeId.trim();
+    if (cleanHomeId.isEmpty) {
+      _members = [];
+      _isLoading = false;
+      _errorMessage = 'Please select or create a home first.';
+      notifyListeners();
+      return;
+    }
+
+    if (_isLoading && !forceRefresh) return;
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final rawList = await _apiClient.getMembers(homeId, token);
+      final rawList = await _apiClient.getMembers(cleanHomeId, token);
       _members = rawList.map((json) => MemberModel.fromJson(json as Map<String, dynamic>)).toList();
+      _hasLoadedMembers = true;
       _isLoading = false;
+      _hasLoadedMembers = true;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -54,6 +201,12 @@ class MembersProvider extends ChangeNotifier {
   }
 
   Future<MemberModel?> addMember(String? token, String homeId, String name, String? relation) async {
+    if (homeId.trim().isEmpty) {
+      _errorMessage = 'Please select or create a home first.';
+      notifyListeners();
+      return null;
+    }
+
     if (name.trim().isEmpty) {
       _errorMessage = 'Member name cannot be empty.';
       notifyListeners();
@@ -74,6 +227,8 @@ class MembersProvider extends ChangeNotifier {
       final newMember = MemberModel.fromJson(res as Map<String, dynamic>);
       _members.add(newMember);
       _selectedMember = newMember;
+      addMemberNameController.clear();
+      addMemberRelationController.clear();
       _isSaving = false;
       _successMessage = '${newMember.name} added successfully.';
       notifyListeners();
@@ -252,5 +407,13 @@ class MembersProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  @override
+  void dispose() {
+    cameraController?.dispose();
+    addMemberNameController.dispose();
+    addMemberRelationController.dispose();
+    super.dispose();
   }
 }

@@ -4,7 +4,9 @@ import 'package:mobile/app/routes/app_routes.dart';
 import 'package:mobile/app/theme/app_theme.dart';
 import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/providers/home_provider.dart';
+import 'package:mobile/providers/onboarding_provider.dart';
 import 'package:mobile/features/members/provider/members_provider.dart';
+import 'package:mobile/features/splash/provider/splash_provider.dart';
 
 class SmartHomeApp extends StatelessWidget {
   const SmartHomeApp({super.key});
@@ -21,6 +23,12 @@ class SmartHomeApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<MembersProvider>(
           create: (_) => MembersProvider(),
+        ),
+        ChangeNotifierProvider<OnboardingProvider>(
+          create: (_) => OnboardingProvider(),
+        ),
+        ChangeNotifierProvider<SplashProvider>(
+          create: (_) => SplashProvider(),
         ),
       ],
       child: MaterialApp(

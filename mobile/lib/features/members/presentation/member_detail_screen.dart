@@ -18,7 +18,7 @@ class MemberDetailScreen extends StatelessWidget {
       final member = membersProvider.selectedMember;
 
       if (member != null) {
-        membersProvider.loadMemberFaces(authProvider.token, member.id);
+        membersProvider.ensureMemberFacesLoaded(authProvider.token, member.id);
       }
     });
   }

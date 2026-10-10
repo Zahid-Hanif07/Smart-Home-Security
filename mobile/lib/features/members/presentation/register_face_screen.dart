@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
@@ -8,142 +7,17 @@ import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/features/members/provider/members_provider.dart';
 import 'package:mobile/features/members/widgets/member_action_button.dart';
 
-class RegisterFaceScreen extends StatefulWidget {
+class RegisterFaceScreen extends StatelessWidget {
   const RegisterFaceScreen({super.key});
-
-  @override
-  State<RegisterFaceScreen> createState() => _RegisterFaceScreenState();
-}
-
-class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
-  CameraController? _controller;
-  Future<void>? _initializeControllerFuture;
-  bool _isCameraInitializing = true;
-  String? _cameraError;
-  int _currentSamples = 0;
-  final int _targetSamples = 8;
-  bool _isSuccess = false;
-  bool _isCapturing = false;
-  String _statusText = 'Position your face inside the frame';
-
-  @override
-  void initState() {
-    super.initState();
-    _initCamera();
-  }
-
-  Future<void> _initCamera() async {
-    setState(() {
-      _isCameraInitializing = true;
-      _cameraError = null;
-    });
-
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        setState(() {
-          _cameraError = 'No camera found on device. Camera is required to register face samples.';
-          _isCameraInitializing = false;
-        });
-        return;
-      }
-
-      // Select front camera if available, else first camera
-      final camera = cameras.firstWhere(
-        (cam) => cam.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
-
-      final controller = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-
-      _initializeControllerFuture = controller.initialize();
-      await _initializeControllerFuture;
-
-      if (mounted) {
-        setState(() {
-          _controller = controller;
-          _isCameraInitializing = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _cameraError = 'Camera error: ${e.toString()}\nPlease check camera permissions.';
-          _isCameraInitializing = false;
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _captureSample(BuildContext context, String memberId) async {
-    if (_controller == null || !_controller!.value.isInitialized || _isCapturing) {
-      return;
-    }
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final membersProvider = Provider.of<MembersProvider>(context, listen: false);
-
-    setState(() {
-      _isCapturing = true;
-      _statusText = 'Processing sample...';
-    });
-
-    try {
-      final image = await _controller!.takePicture();
-      final bytes = await image.readAsBytes();
-      final base64Image = base64Encode(bytes);
-
-      final success = await membersProvider.registerFace(
-        authProvider.token,
-        memberId,
-        base64Image,
-      );
-
-      if (!mounted) return;
-
-      if (success) {
-        final newCount = _currentSamples + 1;
-        setState(() {
-          _currentSamples = newCount;
-          _isCapturing = false;
-          if (newCount >= _targetSamples) {
-            _isSuccess = true;
-            _statusText = 'Face registered successfully!';
-          } else {
-            _statusText = 'Sample $newCount of $_targetSamples captured. Keep looking at camera.';
-          }
-        });
-      } else {
-        setState(() {
-          _isCapturing = false;
-          _statusText = membersProvider.errorMessage ?? 'Sample capture failed. Please try again.';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCapturing = false;
-          _statusText = 'Failed to capture image: ${e.toString()}';
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final membersProvider = Provider.of<MembersProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final member = membersProvider.selectedMember;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (member != null) membersProvider.initializeCamera();
+    });
 
     if (member == null) {
       return Scaffold(
@@ -186,16 +60,16 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
             children: [
               const SizedBox(height: AppSpacing.xs),
               Text(
-                _isSuccess ? '✓ Face Registered Successfully' : 'Look directly at the camera',
+                membersProvider.faceRegistrationSuccess ? '✓ Face Registered Successfully' : 'Look directly at the camera',
                 style: TextStyle(
-                  color: _isSuccess ? AppColors.emeraldInk : AppColors.textPrimary,
+                  color: membersProvider.faceRegistrationSuccess ? AppColors.emeraldInk : AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                _isSuccess
+                membersProvider.faceRegistrationSuccess
                     ? '8 face samples saved to Supabase for ${member.name}.'
                     : 'Position face inside the frame and tap capture to enroll ${member.name}.',
                 textAlign: TextAlign.center,
@@ -214,9 +88,9 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                   color: AppColors.black,
                   borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
                   border: Border.all(
-                    color: _isSuccess
+                    color: membersProvider.faceRegistrationSuccess
                         ? AppColors.emeraldInk
-                        : (_cameraError != null ? AppColors.error : AppColors.emeraldInk),
+                        : (membersProvider.cameraError != null ? AppColors.error : AppColors.emeraldInk),
                     width: 2,
                   ),
                 ),
@@ -225,7 +99,7 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                   alignment: Alignment.center,
                   children: [
                     // Camera preview or fallback
-                    if (_isCameraInitializing) ...[
+                    if (membersProvider.isCameraInitializing) ...[
                       const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -239,7 +113,7 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                           ],
                         ),
                       ),
-                    ] else if (_cameraError != null) ...[
+                    ] else if (membersProvider.cameraError != null) ...[
                       Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
@@ -248,13 +122,13 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                             const Icon(Icons.videocam_off_rounded, color: AppColors.error, size: 48),
                             const SizedBox(height: 12),
                             Text(
-                              _cameraError!,
+                              membersProvider.cameraError!,
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: AppColors.white, fontSize: 13),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
-                              onPressed: _initCamera,
+                              onPressed: membersProvider.retryCameraInitialization,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.champagne,
                                 foregroundColor: AppColors.black,
@@ -264,14 +138,14 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                           ],
                         ),
                       ),
-                    ] else if (_controller != null && _controller!.value.isInitialized) ...[
+                    ] else if (membersProvider.cameraController != null && membersProvider.cameraController!.value.isInitialized) ...[
                       Positioned.fill(
-                        child: CameraPreview(_controller!),
+                        child: CameraPreview(membersProvider.cameraController!),
                       ),
                     ],
 
                     // Success Overlay
-                    if (_isSuccess) ...[
+                    if (membersProvider.faceRegistrationSuccess) ...[
                       Container(
                         color: AppColors.black.withValues(alpha: 0.7),
                         width: double.infinity,
@@ -300,7 +174,7 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                     ],
 
                     // Frame Overlay Target Lines (when camera active and not success)
-                    if (!_isSuccess && _cameraError == null && !_isCameraInitializing) ...[
+                    if (!membersProvider.faceRegistrationSuccess && membersProvider.cameraError == null && !membersProvider.isCameraInitializing) ...[
                       // Center Guide Frame Oval
                       Container(
                         width: 180,
@@ -326,7 +200,7 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                             border: Border.all(color: AppColors.champagne.withValues(alpha: 0.4)),
                           ),
                           child: Text(
-                            _statusText,
+                            membersProvider.faceStatusText,
                             style: const TextStyle(
                               color: AppColors.champagne,
                               fontSize: 12,
@@ -346,7 +220,7 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            'Samples: $_currentSamples / $_targetSamples',
+                            'Samples: ${membersProvider.currentFaceSamples} / ${membersProvider.targetFaceSamples}',
                             style: const TextStyle(
                               color: AppColors.white,
                               fontSize: 13,
@@ -362,7 +236,7 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
               const SizedBox(height: AppSpacing.lg),
 
               // Error Message Banner if any
-              if (membersProvider.errorMessage != null && !_isSuccess) ...[
+              if (membersProvider.errorMessage != null && !membersProvider.faceRegistrationSuccess) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(AppSpacing.md),
@@ -392,17 +266,17 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
               ],
 
               // Controls & Action Buttons
-              if (!_isSuccess) ...[
+              if (!membersProvider.faceRegistrationSuccess) ...[
                 MemberActionButton(
-                  label: _isCapturing
+                  label: membersProvider.isCapturingFace
                       ? 'Processing Face Sample...'
-                      : (_currentSamples == 0
-                          ? 'Capture Sample (1/$_targetSamples)'
-                          : 'Capture Sample (${_currentSamples + 1}/$_targetSamples)'),
+                      : (membersProvider.currentFaceSamples == 0
+                          ? 'Capture Sample (1/${membersProvider.targetFaceSamples})'
+                          : 'Capture Sample (${membersProvider.currentFaceSamples + 1}/${membersProvider.targetFaceSamples})'),
                   icon: Icons.camera_alt_rounded,
-                  isLoading: _isCapturing || membersProvider.isSaving,
-                  onPressed: (_cameraError == null && !_isCameraInitializing && !_isCapturing)
-                      ? () => _captureSample(context, member.id)
+                  isLoading: membersProvider.isCapturingFace || membersProvider.isSaving,
+                  onPressed: (membersProvider.cameraError == null && !membersProvider.isCameraInitializing && !membersProvider.isCapturingFace)
+                      ? () => membersProvider.captureFaceSample(authProvider.token, member.id)
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -410,13 +284,19 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
                   label: 'Cancel',
                   icon: Icons.close_rounded,
                   isPrimary: false,
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () async {
+                    await membersProvider.closeFaceRegistration();
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
                 ),
               ] else ...[
                 MemberActionButton(
                   label: 'Done',
                   icon: Icons.check_circle_outline_rounded,
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () async {
+                    await membersProvider.closeFaceRegistration();
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
                 ),
               ],
             ],

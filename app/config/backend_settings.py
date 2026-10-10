@@ -22,12 +22,13 @@ class BackendSettings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="dummy_service_role_key")
     SUPABASE_JWT_SECRET: str = Field(default="demo_jwt_secret_key_for_testing_123456789")
 
-    FASTAPI_HOST: str = Field(default="127.0.0.1")
+    FASTAPI_HOST: str = Field(default="0.0.0.0")
     FASTAPI_PORT: int = Field(default=8085)
     API_BASE_URL: str = Field(default="http://127.0.0.1:8085")
     SECURITY_HOME_ID: Optional[str] = Field(default=None)
+    SUPABASE_ACCESS_TOKEN: Optional[str] = Field(default=None)
     CORS_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8085", "http://127.0.0.1:8085"]
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8085", "http://127.0.0.1:8085", "*"]
     )
     STREAM_ENABLED: bool = Field(default=True)
     STREAM_JPEG_QUALITY: int = Field(default=80)

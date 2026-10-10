@@ -9,38 +9,28 @@ import 'package:mobile/features/auth/widgets/auth_text_field.dart';
 import 'package:mobile/features/auth/widgets/auth_button.dart';
 import 'package:mobile/providers/auth_provider.dart';
 
-/// RegisterScreen - StatelessWidget Mobile Identity
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
 
+  Future<void> _handleRegister(BuildContext context, AuthProvider authProvider) async {
+    if (!authProvider.registerFormKey.currentState!.validate()) return;
+    final success = await authProvider.register(
+      authProvider.registerNameController.text,
+      authProvider.registerEmailController.text,
+      authProvider.registerPasswordController.text,
+    );
+
+    if (success && context.mounted) {
+      authProvider.resetRegisterForm();
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.home,
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
-    final obscurePasswordNotifier = ValueNotifier<bool>(true);
-
-    Future<void> handleRegister() async {
-      if (!formKey.currentState!.validate()) return;
-
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final success = await authProvider.register(
-        nameController.text,
-        emailController.text,
-        passwordController.text,
-      );
-
-      if (!context.mounted) return;
-      if (success) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.home,
-          (route) => false,
-        );
-      }
-    }
-
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
@@ -64,7 +54,7 @@ class RegisterScreen extends StatelessWidget {
               vertical: AppSpacing.md,
             ),
             child: Form(
-              key: formKey,
+              key: authProvider.registerFormKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -75,7 +65,7 @@ class RegisterScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
-                  // Error notification banner if registration error exists
+                  // Error or notification banner if auth message exists
                   if (authProvider.errorMessage != null) ...[
                     Container(
                       width: double.infinity,
@@ -92,7 +82,7 @@ class RegisterScreen extends StatelessWidget {
                       child: Row(
                         children: [
                           const Icon(
-                            Icons.error_outline_rounded,
+                            Icons.info_outline_rounded,
                             color: AppColors.error,
                             size: 20,
                           ),
@@ -113,7 +103,7 @@ class RegisterScreen extends StatelessWidget {
 
                   // Full Name input field
                   AuthTextField(
-                    controller: nameController,
+                    controller: authProvider.registerNameController,
                     label: 'Full Name',
                     hint: 'Alex Morgan',
                     prefixIcon: Icons.person_outline_rounded,
@@ -129,7 +119,7 @@ class RegisterScreen extends StatelessWidget {
 
                   // Email input field
                   AuthTextField(
-                    controller: emailController,
+                    controller: authProvider.registerEmailController,
                     label: 'Email Address',
                     hint: 'user@example.com',
                     prefixIcon: Icons.mail_outline_rounded,
@@ -138,7 +128,7 @@ class RegisterScreen extends StatelessWidget {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter an email address.';
                       }
-                      if (!value.contains('@')) {
+                      if (!value.trim().contains('@')) {
                         return 'Please enter a valid email address.';
                       }
                       return null;
@@ -148,12 +138,12 @@ class RegisterScreen extends StatelessWidget {
 
                   // Password input field
                   ValueListenableBuilder<bool>(
-                    valueListenable: obscurePasswordNotifier,
+                    valueListenable: authProvider.registerPasswordObscured,
                     builder: (context, isObscured, _) {
                       return Column(
                         children: [
                           AuthTextField(
-                            controller: passwordController,
+                            controller: authProvider.registerPasswordController,
                             label: 'Password',
                             hint: '••••••••',
                             prefixIcon: Icons.lock_outline_rounded,
@@ -167,7 +157,7 @@ class RegisterScreen extends StatelessWidget {
                                 size: 20,
                               ),
                               onPressed: () {
-                                obscurePasswordNotifier.value = !isObscured;
+                                authProvider.toggleRegisterPasswordVisibility();
                               },
                             ),
                             validator: (value) {
@@ -182,7 +172,7 @@ class RegisterScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: AppSpacing.md),
                           AuthTextField(
-                            controller: confirmPasswordController,
+                            controller: authProvider.registerConfirmPasswordController,
                             label: 'Confirm Password',
                             hint: '••••••••',
                             prefixIcon: Icons.lock_reset_rounded,
@@ -191,7 +181,7 @@ class RegisterScreen extends StatelessWidget {
                               if (value == null || value.isEmpty) {
                                 return 'Please confirm your password.';
                               }
-                              if (value != passwordController.text) {
+                              if (value != authProvider.registerPasswordController.text) {
                                 return 'Passwords do not match.';
                               }
                               return null;
@@ -207,7 +197,7 @@ class RegisterScreen extends StatelessWidget {
                   AuthButton(
                     text: 'Register Account',
                     isLoading: authProvider.isLoading,
-                    onPressed: handleRegister,
+                    onPressed: () => _handleRegister(context, authProvider),
                   ),
                   const SizedBox(height: AppSpacing.lg),
 

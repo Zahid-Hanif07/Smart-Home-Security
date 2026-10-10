@@ -35,6 +35,20 @@ class HomeRepository:
         client = self._get_client()
         if client:
             try:
+                # Ensure profile exists in public.profiles table (idempotent setup)
+                admin_client = SupabaseClientManager.get_admin_client() or client
+                try:
+                    admin_client.table("profiles").upsert(
+                        {
+                            "id": str(owner_id),
+                            "name": "Home Owner",
+                            "email": f"owner_{str(owner_id)[:8]}@example.com",
+                        },
+                        on_conflict="id",
+                    ).execute()
+                except Exception as e:
+                    print(f"Warning: Failed to ensure profile for owner {owner_id}: {e}")
+
                 home_data = {
                     "owner_id": str(owner_id),
                     "name": data.name,

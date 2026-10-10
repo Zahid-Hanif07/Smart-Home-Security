@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import 'package:mobile/app/theme/app_theme.dart';
 import 'package:mobile/features/home/presentation/home_screen.dart';
 import 'package:mobile/features/home/widgets/security_status_card.dart';
@@ -11,6 +13,18 @@ import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/providers/home_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    try {
+      await Supabase.initialize(
+        url: 'https://example.supabase.co',
+        anonKey: 'mock_anon_key',
+      );
+    } catch (_) {}
+  });
+
   group('HomeScreen & Dashboard Widget Tests', () {
     testWidgets('1. SecurityStatusCard renders secure state', (WidgetTester tester) async {
       await tester.pumpWidget(
@@ -111,7 +125,7 @@ void main() {
       expect(find.text('Family Members & Faces'), findsOneWidget);
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Members'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Properties'), findsOneWidget);
     });
   });
 }
