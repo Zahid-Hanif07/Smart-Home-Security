@@ -3,46 +3,47 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/app/routes/app_routes.dart';
 import 'package:mobile/app/theme/app_colors.dart';
-import 'package:mobile/app/theme/app_spacing.dart';
-import 'package:mobile/features/onboarding/widgets/animated_get_started_button.dart';
 import 'package:mobile/providers/onboarding_provider.dart';
 
-/// Data model for onboarding slide content
 class _OnboardingPageData {
-  final String imagePath;
-  final String title;
-  final String description;
-
+  final IconData icon;
+  final String tag, eyebrow, title, description;
   const _OnboardingPageData({
-    required this.imagePath,
+    required this.icon,
+    required this.tag,
+    required this.eyebrow,
     required this.title,
     required this.description,
   });
 }
 
-/// OTTO Onboarding Flow - Pure StatelessWidget
-/// Renders 3-screen PageView flow with OTTO emerald & champagne aesthetic.
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
 
   static const List<_OnboardingPageData> _pages = [
     _OnboardingPageData(
-      imagePath: 'assets/images/onboarding.png',
-      title: 'Intelligent Vigilance',
+      icon: Icons.center_focus_strong_rounded,
+      tag: 'Intelligent vigilance',
+      eyebrow: 'Always aware',
+      title: 'Protection that\npays attention.',
       description:
-          'Next-generation AI security monitoring your perimeter with precision and instant real-time awareness.',
+          'Know what’s happening around your home with real-time security awareness.',
     ),
     _OnboardingPageData(
-      imagePath: 'assets/images/onboarding1.png',
-      title: 'Biometric Recognition',
+      icon: Icons.face_retouching_natural_rounded,
+      tag: 'Biometric recognition',
+      eyebrow: 'Trusted people',
+      title: 'Familiar faces.\nClear decisions.',
       description:
-          'Advanced facial recognition and automated member verification for seamless, trusted access control.',
+          'Enroll the people you trust and review recognition activity from your phone.',
     ),
     _OnboardingPageData(
-      imagePath: 'assets/images/onboarding2.png',
-      title: 'Total Command',
+      icon: Icons.dashboard_customize_rounded,
+      tag: 'One clear command center',
+      eyebrow: 'Control from anywhere',
+      title: 'Your home.\nUnder your care.',
       description:
-          'Empower your home security with AI voice interaction, live threat telemetry, and real-time defense.',
+          'Bring camera, people, and important events into one focused security dashboard.',
     ),
   ];
 
@@ -51,208 +52,251 @@ class OnboardingScreen extends StatelessWidget {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: AppColors.emeraldInk,
-        systemNavigationBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: AppColors.background,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
     );
-
-    final provider = Provider.of<OnboardingProvider>(context);
-
+    final provider = context.watch<OnboardingProvider>();
     return Scaffold(
-      backgroundColor: AppColors.emeraldInk,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            // Top Header: App Branding & Skip Action
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.sm,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // OTTO Champagne Wordmark
                   const Text(
-                    'O T T O',
+                    'OTTO',
                     style: TextStyle(
-                      color: AppColors.champagne,
-                      fontSize: 20,
+                      color: AppColors.emeraldInk,
+                      letterSpacing: 4,
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 4.0,
                     ),
                   ),
-                  // Skip button on pages 1 & 2
                   if (!provider.isLastPage)
                     TextButton(
                       onPressed: () => provider.completeOnboarding(
                         context,
                         targetRoute: AppRoutes.login,
                       ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.champagne.withValues(alpha: 0.8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
-                        ),
-                      ),
                       child: const Text(
                         'SKIP',
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 1.4,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     )
                   else
-                    const SizedBox(height: 36),
+                    const SizedBox(width: 48),
                 ],
               ),
             ),
-
-            // Middle: PageView for Onboarding Content
             Expanded(
               child: PageView.builder(
                 controller: provider.pageController,
                 itemCount: _pages.length,
                 onPageChanged: provider.onPageChanged,
                 itemBuilder: (context, index) {
-                  final item = _pages[index];
+                  final page = _pages[index];
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                    padding: const EdgeInsets.fromLTRB(20, 5, 20, 12),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Image Asset Container
                         Expanded(
                           flex: 6,
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(AppSpacing.md),
-                              child: Image.asset(
-                                item.imagePath,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.videocam_outlined,
-                                    size: 80,
-                                    color: AppColors.champagne,
-                                  );
-                                },
+                          child: Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(26),
+                              gradient: const RadialGradient(
+                                colors: [Color(0xFFE2ECD9), Color(0xFFF5ECD9)],
+                                radius: 1.0,
                               ),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 164,
+                                  height: 164,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: AppColors.emeraldInk.withValues(
+                                        alpha: .22,
+                                      ),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.emeraldInk.withValues(
+                                          alpha: .04,
+                                        ),
+                                        blurRadius: 0,
+                                        spreadRadius: 18,
+                                      ),
+                                      BoxShadow(
+                                        color: AppColors.emeraldInk.withValues(
+                                          alpha: .025,
+                                        ),
+                                        blurRadius: 0,
+                                        spreadRadius: 38,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  width: 76,
+                                  height: 76,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.emeraldInk,
+                                    borderRadius: BorderRadius.circular(25),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.emeraldInk.withValues(
+                                          alpha: .18,
+                                        ),
+                                        blurRadius: 28,
+                                        offset: const Offset(0, 12),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    page.icon,
+                                    size: 36,
+                                    color: AppColors.champagne,
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 16,
+                                  bottom: 15,
+                                  child: Text(
+                                    page.tag.toUpperCase(),
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 9,
+                                      letterSpacing: 1.2,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // Text Details
-                        Expanded(
-                          flex: 3,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.title,
-                                textAlign: TextAlign.center,
+                                page.eyebrow.toUpperCase(),
                                 style: const TextStyle(
-                                  color: AppColors.champagne,
-                                  fontSize: 24,
+                                  color: AppColors.forest,
+                                  fontSize: 10,
+                                  letterSpacing: 1.2,
                                   fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.0,
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: 8),
                               Text(
-                                item.description,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: AppColors.white.withValues(alpha: 0.75),
-                                  fontSize: 14,
-                                  height: 1.45,
-                                  fontWeight: FontWeight.w400,
+                                page.title,
+                                style: const TextStyle(
+                                  fontSize: 29,
+                                  height: 1.12,
+                                  letterSpacing: -1,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                page.description,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.5,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 12),
                       ],
                     ),
                   );
                 },
               ),
             ),
-
-            // Bottom Section: Page Indicator & Action Controls
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Dynamic Page Indicator Pills
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: List.generate(
                       _pages.length,
                       (index) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        height: 8,
-                        width: provider.currentPage == index ? 28 : 8,
+                        duration: const Duration(milliseconds: 220),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: provider.currentPage == index ? 20 : 6,
+                        height: 6,
                         decoration: BoxDecoration(
                           color: provider.currentPage == index
-                              ? AppColors.champagne
-                              : AppColors.champagne.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(4),
+                              ? AppColors.emeraldInk
+                              : const Color(0xFFC4CEC4),
+                          borderRadius: BorderRadius.circular(9),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Bottom Action Button
-                  if (provider.isLastPage)
-                    AnimatedGetStartedButton(
-                      isNavigating: provider.isNavigating,
-                      onPressed: () => provider.completeOnboarding(
-                        context,
-                        targetRoute: AppRoutes.login,
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: provider.isLastPage
+                          ? (provider.isNavigating
+                                ? null
+                                : () => provider.completeOnboarding(
+                                    context,
+                                    targetRoute: AppRoutes.login,
+                                  ))
+                          : provider.nextPage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.emeraldInk,
+                        foregroundColor: AppColors.champagne,
+                        minimumSize: const Size.fromHeight(46),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        shape: const StadiumBorder(),
                       ),
-                    )
-                  else
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: provider.nextPage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.champagne,
-                          foregroundColor: AppColors.emeraldInk,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            provider.isLastPage ? 'GET STARTED' : 'NEXT',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.1,
+                            ),
                           ),
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'NEXT',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 2.0,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 18,
-                            ),
-                          ],
-                        ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.arrow_forward_rounded, size: 16),
+                        ],
                       ),
                     ),
+                  ),
                 ],
               ),
             ),

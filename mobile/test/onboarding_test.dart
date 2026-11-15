@@ -8,6 +8,7 @@ import 'package:mobile/core/storage/local_storage.dart';
 import 'package:mobile/providers/onboarding_provider.dart';
 import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/features/splash/presentation/splash_screen.dart';
+import 'package:mobile/features/splash/provider/splash_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -71,8 +72,8 @@ void main() {
         );
 
         // Verify OTTO branding and first page title
-        expect(find.text('O T T O'), findsOneWidget);
-        expect(find.text('Intelligent Vigilance'), findsOneWidget);
+        expect(find.text('OTTO'), findsOneWidget);
+        expect(find.text('INTELLIGENT VIGILANCE'), findsOneWidget);
         expect(find.text('SKIP'), findsOneWidget);
         expect(find.text('NEXT'), findsOneWidget);
       },
@@ -86,6 +87,9 @@ void main() {
               create: (_) => OnboardingProvider(),
             ),
             ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
+            ChangeNotifierProvider<SplashProvider>(
+              create: (_) => SplashProvider(),
+            ),
           ],
           child: MaterialApp(
             initialRoute: AppRoutes.splash,
@@ -95,7 +99,9 @@ void main() {
       );
 
       expect(find.byType(SplashScreen), findsOneWidget);
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.byIcon(Icons.shield_rounded), findsOneWidget);
+      expect(find.text('OTTO'), findsWidgets);
+      expect(find.text('HOME SECURITY'), findsWidgets);
       await tester.pump(const Duration(seconds: 2));
     });
   });

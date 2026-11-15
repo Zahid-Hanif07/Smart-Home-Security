@@ -12,7 +12,10 @@ import 'package:mobile/providers/auth_provider.dart';
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
-  Future<void> _handleLogin(BuildContext context, AuthProvider authProvider) async {
+  Future<void> _handleLogin(
+    BuildContext context,
+    AuthProvider authProvider,
+  ) async {
     if (!authProvider.loginFormKey.currentState!.validate()) return;
     final success = await authProvider.login(
       authProvider.loginEmailController.text,
@@ -44,8 +47,8 @@ class LoginScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const AuthHeader(
-                    title: 'Welcome Back',
-                    subtitle: 'Sign in to access your smart home security ecosystem',
+                    title: 'Welcome\nback.',
+                    subtitle: 'Sign in to see what’s happening at home.',
                     icon: Icons.shield_outlined,
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -58,7 +61,9 @@ class LoginScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                       decoration: BoxDecoration(
                         color: AppColors.champagneSoft,
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusSm,
+                        ),
                         border: Border.all(
                           color: AppColors.error.withValues(alpha: 0.3),
                           width: 1.0,

@@ -62,7 +62,7 @@ class TestStep5E2E(unittest.TestCase):
 
     def test_03_recognition_authorized_vs_unknown(self):
         """Test 4 & Test 5: Recognition authorized vs unknown face."""
-        rec_service = FaceRecognitionService(database=self.db)
+        rec_service = FaceRecognitionService(database=self.db, allow_local_database=True)
         embedding_service = FaceEmbeddingService()
 
         # Frame corresponding to registered TestUser_Zahid

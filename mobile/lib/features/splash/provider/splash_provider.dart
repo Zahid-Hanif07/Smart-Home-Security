@@ -22,8 +22,8 @@ class SplashProvider extends ChangeNotifier {
 
     final isAuthenticated = await authProvider.checkAuthStatus();
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacementNamed(
-      isAuthenticated ? AppRoutes.home : AppRoutes.login,
-    );
+    Navigator.of(
+      context,
+    ).pushReplacementNamed(isAuthenticated ? AppRoutes.home : AppRoutes.login);
   }
 }

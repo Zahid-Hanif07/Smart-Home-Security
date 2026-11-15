@@ -31,6 +31,7 @@ class MembersProvider extends ChangeNotifier {
   String faceStatusText = 'Position your face inside the frame';
   bool _cameraInitializationStarted = false;
   int _cameraRequestId = 0;
+  int _membersLoadRequestId = 0;
   String? _facesLoadedForMemberId;
   String? _facesLoadingForMemberId;
 
@@ -44,7 +45,8 @@ class MembersProvider extends ChangeNotifier {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        cameraError = 'No camera found on device. Camera is required to register face samples.';
+        cameraError =
+            'No camera found on device. Camera is required to register face samples.';
         isCameraInitializing = false;
         notifyListeners();
         return;
@@ -102,7 +104,11 @@ class MembersProvider extends ChangeNotifier {
 
   Future<void> captureFaceSample(String? token, String memberId) async {
     final controller = cameraController;
-    if (controller == null || !controller.value.isInitialized || isCapturingFace) return;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        isCapturingFace) {
+      return;
+    }
     isCapturingFace = true;
     faceStatusText = 'Processing sample...';
     notifyListeners();
@@ -116,10 +122,12 @@ class MembersProvider extends ChangeNotifier {
           faceRegistrationSuccess = true;
           faceStatusText = 'Face registered successfully!';
         } else {
-          faceStatusText = 'Sample $currentFaceSamples of $targetFaceSamples captured. Keep looking at camera.';
+          faceStatusText =
+              'Sample $currentFaceSamples of $targetFaceSamples captured. Keep looking at camera.';
         }
       } else {
-        faceStatusText = errorMessage ?? 'Sample capture failed. Please try again.';
+        faceStatusText =
+            errorMessage ?? 'Sample capture failed. Please try again.';
       }
     } catch (error) {
       faceStatusText = 'Failed to capture image: $error';
@@ -132,13 +140,42 @@ class MembersProvider extends ChangeNotifier {
   Future<void> ensureMembersLoaded(String? token, String? homeId) async {
     final id = homeId ?? '';
     if (id == _lastLoadedHomeId && (isLoading || _hasLoadedMembers)) return;
-    if (id != _lastLoadedHomeId) _hasLoadedMembers = false;
+    if (id != _lastLoadedHomeId) {
+      _membersLoadRequestId++;
+      _isLoading = false;
+      _hasLoadedMembers = false;
+      _members = [];
+      _selectedMember = null;
+      _memberFaces = [];
+      _facesLoadedForMemberId = null;
+      _facesLoadingForMemberId = null;
+    }
     _lastLoadedHomeId = id;
     if (id.isEmpty) _hasLoadedMembers = true;
     await loadMembers(token, id);
   }
 
-  MembersProvider({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  Future<void> captureFaceSampleForHome(
+    String? token,
+    String memberId,
+    String? selectedHomeId,
+  ) async {
+    final member = _selectedMember;
+    if (selectedHomeId == null ||
+        selectedHomeId.isEmpty ||
+        selectedHomeId != _lastLoadedHomeId ||
+        member == null ||
+        member.id != memberId ||
+        member.homeId != selectedHomeId) {
+      _errorMessage = 'Select the home that owns this member before enrolling a face.';
+      notifyListeners();
+      return;
+    }
+    await captureFaceSample(token, memberId);
+  }
+
+  MembersProvider({ApiClient? apiClient})
+    : _apiClient = apiClient ?? ApiClient();
 
   List<MemberModel> get members => _members;
   MemberModel? get selectedMember => _selectedMember;
@@ -163,14 +200,21 @@ class MembersProvider extends ChangeNotifier {
   }
 
   Future<void> ensureMemberFacesLoaded(String? token, String memberId) async {
-    if (_facesLoadedForMemberId == memberId || _facesLoadingForMemberId == memberId) return;
+    if (_facesLoadedForMemberId == memberId ||
+        _facesLoadingForMemberId == memberId) {
+      return;
+    }
     _facesLoadingForMemberId = memberId;
     await loadMemberFaces(token, memberId);
     _facesLoadingForMemberId = null;
     _facesLoadedForMemberId = memberId;
   }
 
-  Future<void> loadMembers(String? token, String homeId, {bool forceRefresh = false}) async {
+  Future<void> loadMembers(
+    String? token,
+    String homeId, {
+    bool forceRefresh = false,
+  }) async {
     final cleanHomeId = homeId.trim();
     if (cleanHomeId.isEmpty) {
       _members = [];
@@ -183,15 +227,18 @@ class MembersProvider extends ChangeNotifier {
     if (_isLoading && !forceRefresh) return;
 
     _isLoading = true;
+    final requestId = ++_membersLoadRequestId;
     _errorMessage = null;
     notifyListeners();
 
     try {
       final rawList = await _apiClient.getMembers(cleanHomeId, token);
-      _members = rawList.map((json) => MemberModel.fromJson(json as Map<String, dynamic>)).toList();
+      if (requestId != _membersLoadRequestId || _lastLoadedHomeId != cleanHomeId) return;
+      _members = rawList
+          .map((json) => MemberModel.fromJson(json as Map<String, dynamic>))
+          .toList();
       _hasLoadedMembers = true;
       _isLoading = false;
-      _hasLoadedMembers = true;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -200,9 +247,14 @@ class MembersProvider extends ChangeNotifier {
     }
   }
 
-  Future<MemberModel?> addMember(String? token, String homeId, String name, String? relation) async {
-    if (homeId.trim().isEmpty) {
-      _errorMessage = 'Please select or create a home first.';
+  Future<MemberModel?> addMember(
+    String? token,
+    String homeId,
+    String name,
+    String? relation,
+  ) async {
+    if (homeId.trim().isEmpty || homeId.trim() != _lastLoadedHomeId || !_hasLoadedMembers) {
+      _errorMessage = 'Select a home and wait for its members to load before adding a member.';
       notifyListeners();
       return null;
     }
@@ -219,10 +271,7 @@ class MembersProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final body = {
-        'name': name.trim(),
-        'relation': relation?.trim(),
-      };
+      final body = {'name': name.trim(), 'relation': relation?.trim()};
       final res = await _apiClient.createMember(homeId, body, token);
       final newMember = MemberModel.fromJson(res as Map<String, dynamic>);
       _members.add(newMember);
@@ -241,19 +290,21 @@ class MembersProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateMember(String? token, String memberId, String name, String? relation) async {
+  Future<bool> updateMember(
+    String? token,
+    String memberId,
+    String name,
+    String? relation,
+  ) async {
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final body = {
-        'name': name.trim(),
-        'relation': relation?.trim(),
-      };
+      final body = {'name': name.trim(), 'relation': relation?.trim()};
       final res = await _apiClient.updateMember(memberId, body, token);
       final updated = MemberModel.fromJson(res as Map<String, dynamic>);
-      
+
       final index = _members.indexWhere((m) => m.id == memberId);
       if (index != -1) {
         _members[index] = updated;
@@ -300,11 +351,15 @@ class MembersProvider extends ChangeNotifier {
   Future<void> loadMemberFaces(String? token, String memberId) async {
     try {
       final rawList = await _apiClient.getFaces(memberId, token);
-      _memberFaces = rawList.map((json) => FaceRecordModel.fromJson(json as Map<String, dynamic>)).toList();
-      
+      _memberFaces = rawList
+          .map((json) => FaceRecordModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+
       // Update faceCount on selected member if needed
       if (_selectedMember?.id == memberId) {
-        _selectedMember = _selectedMember!.copyWith(faceCount: _memberFaces.length);
+        _selectedMember = _selectedMember!.copyWith(
+          faceCount: _memberFaces.length,
+        );
         final idx = _members.indexWhere((m) => m.id == memberId);
         if (idx != -1) {
           _members[idx] = _selectedMember!;
@@ -317,23 +372,26 @@ class MembersProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> registerFace(String? token, String memberId, String imageBase64) async {
+  Future<bool> registerFace(
+    String? token,
+    String memberId,
+    String imageBase64,
+  ) async {
     _isSaving = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
     try {
-      final body = {
-        'image_base64': imageBase64,
-        'sample_count': 1,
-      };
+      final body = {'image_base64': imageBase64, 'sample_count': 1};
       final res = await _apiClient.registerFace(memberId, body, token);
       final newFace = FaceRecordModel.fromJson(res as Map<String, dynamic>);
       _memberFaces.add(newFace);
 
       if (_selectedMember?.id == memberId) {
-        _selectedMember = _selectedMember!.copyWith(faceCount: _memberFaces.length);
+        _selectedMember = _selectedMember!.copyWith(
+          faceCount: _memberFaces.length,
+        );
         final idx = _members.indexWhere((m) => m.id == memberId);
         if (idx != -1) {
           _members[idx] = _selectedMember!;
@@ -362,7 +420,9 @@ class MembersProvider extends ChangeNotifier {
       _memberFaces.removeWhere((f) => f.id == faceId);
 
       if (_selectedMember != null) {
-        _selectedMember = _selectedMember!.copyWith(faceCount: _memberFaces.length);
+        _selectedMember = _selectedMember!.copyWith(
+          faceCount: _memberFaces.length,
+        );
         final idx = _members.indexWhere((m) => m.id == _selectedMember!.id);
         if (idx != -1) {
           _members[idx] = _selectedMember!;
@@ -407,6 +467,29 @@ class MembersProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<void> clearSessionData() async {
+    _cameraRequestId++;
+
+    await cameraController?.dispose();
+    cameraController = null;
+    cameraInitialization = null;
+    _cameraInitializationStarted = false;
+    isCameraInitializing = true;
+    cameraError = null;
+
+    _members = [];
+    _selectedMember = null;
+    _memberFaces = [];
+    _lastLoadedHomeId = null;
+    _hasLoadedMembers = false;
+    _facesLoadedForMemberId = null;
+    _facesLoadingForMemberId = null;
+    _errorMessage = null;
+    _successMessage = null;
+
+    notifyListeners();
   }
 
   @override

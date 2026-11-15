@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:mobile/app/theme/app_colors.dart';
 import 'package:mobile/app/theme/app_spacing.dart';
 import 'package:mobile/providers/auth_provider.dart';
+import 'package:mobile/providers/home_provider.dart';
 import 'package:mobile/features/members/provider/members_provider.dart';
 import 'package:mobile/features/members/widgets/member_action_button.dart';
 
@@ -14,12 +15,13 @@ class RegisterFaceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final membersProvider = Provider.of<MembersProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final selectedHome = Provider.of<HomeProvider>(context).currentHome;
     final member = membersProvider.selectedMember;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (member != null) membersProvider.initializeCamera();
     });
 
-    if (member == null) {
+    if (member == null || selectedHome == null || member.homeId != selectedHome.id) {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -29,7 +31,7 @@ class RegisterFaceScreen extends StatelessWidget {
         ),
         body: const Center(
           child: Text(
-            'No member selected for face registration.',
+            'Select the home that owns this member, then open the member again.',
             style: TextStyle(color: AppColors.textPrimary),
           ),
         ),
@@ -44,7 +46,7 @@ class RegisterFaceScreen extends StatelessWidget {
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: AppColors.black),
         title: Text(
-          'Register Face - ${member.name}',
+          'Face enrollment',
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
@@ -58,39 +60,60 @@ class RegisterFaceScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                membersProvider.faceRegistrationSuccess ? '✓ Face Registered Successfully' : 'Look directly at the camera',
-                style: TextStyle(
-                  color: membersProvider.faceRegistrationSuccess ? AppColors.emeraldInk : AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${member.name.toUpperCase()} · FACE ENROLLMENT',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                membersProvider.faceRegistrationSuccess
-                    ? '8 face samples saved to Supabase for ${member.name}.'
-                    : 'Position face inside the frame and tap capture to enroll ${member.name}.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
+              const SizedBox(height: 7),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Let’s capture\nyour face.',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 28,
+                    height: 1.12,
+                    letterSpacing: -.7,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: 6),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Look toward the camera and keep your face inside the guide.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.md),
 
               // Camera Frame / Preview Container
               Container(
                 width: double.infinity,
-                height: 320,
+                height: 280,
                 decoration: BoxDecoration(
                   color: AppColors.black,
                   borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
                   border: Border.all(
                     color: membersProvider.faceRegistrationSuccess
                         ? AppColors.emeraldInk
-                        : (membersProvider.cameraError != null ? AppColors.error : AppColors.emeraldInk),
+                        : (membersProvider.cameraError != null
+                              ? AppColors.error
+                              : AppColors.emeraldInk),
                     width: 2,
                   ),
                 ),
@@ -104,11 +127,16 @@ class RegisterFaceScreen extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(color: AppColors.champagne),
+                            CircularProgressIndicator(
+                              color: AppColors.champagne,
+                            ),
                             SizedBox(height: 12),
                             Text(
                               'Initializing phone camera...',
-                              style: TextStyle(color: AppColors.white, fontSize: 13),
+                              style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),
@@ -119,16 +147,24 @@ class RegisterFaceScreen extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.videocam_off_rounded, color: AppColors.error, size: 48),
+                            const Icon(
+                              Icons.videocam_off_rounded,
+                              color: AppColors.error,
+                              size: 48,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               membersProvider.cameraError!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: AppColors.white, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 13,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
-                              onPressed: membersProvider.retryCameraInitialization,
+                              onPressed:
+                                  membersProvider.retryCameraInitialization,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.champagne,
                                 foregroundColor: AppColors.black,
@@ -138,7 +174,11 @@ class RegisterFaceScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                    ] else if (membersProvider.cameraController != null && membersProvider.cameraController!.value.isInitialized) ...[
+                    ] else if (membersProvider.cameraController != null &&
+                        membersProvider
+                            .cameraController!
+                            .value
+                            .isInitialized) ...[
                       Positioned.fill(
                         child: CameraPreview(membersProvider.cameraController!),
                       ),
@@ -153,7 +193,11 @@ class RegisterFaceScreen extends StatelessWidget {
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_circle_rounded, color: AppColors.champagne, size: 64),
+                            Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.champagne,
+                              size: 64,
+                            ),
                             SizedBox(height: 12),
                             Text(
                               'Enrollment Complete',
@@ -166,7 +210,10 @@ class RegisterFaceScreen extends StatelessWidget {
                             SizedBox(height: 4),
                             Text(
                               '128D SFace feature embeddings saved',
-                              style: TextStyle(color: AppColors.champagne, fontSize: 13),
+                              style: TextStyle(
+                                color: AppColors.champagne,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),
@@ -174,7 +221,9 @@ class RegisterFaceScreen extends StatelessWidget {
                     ],
 
                     // Frame Overlay Target Lines (when camera active and not success)
-                    if (!membersProvider.faceRegistrationSuccess && membersProvider.cameraError == null && !membersProvider.isCameraInitializing) ...[
+                    if (!membersProvider.faceRegistrationSuccess &&
+                        membersProvider.cameraError == null &&
+                        !membersProvider.isCameraInitializing) ...[
                       // Center Guide Frame Oval
                       Container(
                         width: 180,
@@ -193,11 +242,16 @@ class RegisterFaceScreen extends StatelessWidget {
                       Positioned(
                         top: 14,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.black.withValues(alpha: 0.75),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.champagne.withValues(alpha: 0.4)),
+                            border: Border.all(
+                              color: AppColors.champagne.withValues(alpha: 0.4),
+                            ),
                           ),
                           child: Text(
                             membersProvider.faceStatusText,
@@ -214,7 +268,10 @@ class RegisterFaceScreen extends StatelessWidget {
                       Positioned(
                         bottom: 14,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.black.withValues(alpha: 0.75),
                             borderRadius: BorderRadius.circular(16),
@@ -233,10 +290,30 @@ class RegisterFaceScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(membersProvider.targetFaceSamples, (
+                  index,
+                ) {
+                  final complete = index < membersProvider.currentFaceSamples;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 11,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: complete ? AppColors.emeraldInk : AppColors.border,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                  );
+                }),
+              ),
               const SizedBox(height: AppSpacing.lg),
 
               // Error Message Banner if any
-              if (membersProvider.errorMessage != null && !membersProvider.faceRegistrationSuccess) ...[
+              if (membersProvider.errorMessage != null &&
+                  !membersProvider.faceRegistrationSuccess) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(AppSpacing.md),
@@ -244,11 +321,17 @@ class RegisterFaceScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSoft,
                     borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        color: AppColors.error,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -271,12 +354,21 @@ class RegisterFaceScreen extends StatelessWidget {
                   label: membersProvider.isCapturingFace
                       ? 'Processing Face Sample...'
                       : (membersProvider.currentFaceSamples == 0
-                          ? 'Capture Sample (1/${membersProvider.targetFaceSamples})'
-                          : 'Capture Sample (${membersProvider.currentFaceSamples + 1}/${membersProvider.targetFaceSamples})'),
+                            ? 'Capture Sample (1/${membersProvider.targetFaceSamples})'
+                            : 'Capture Sample (${membersProvider.currentFaceSamples + 1}/${membersProvider.targetFaceSamples})'),
                   icon: Icons.camera_alt_rounded,
-                  isLoading: membersProvider.isCapturingFace || membersProvider.isSaving,
-                  onPressed: (membersProvider.cameraError == null && !membersProvider.isCameraInitializing && !membersProvider.isCapturingFace)
-                      ? () => membersProvider.captureFaceSample(authProvider.token, member.id)
+                  isLoading:
+                      membersProvider.isCapturingFace ||
+                      membersProvider.isSaving,
+                  onPressed:
+                      (membersProvider.cameraError == null &&
+                          !membersProvider.isCameraInitializing &&
+                          !membersProvider.isCapturingFace)
+                      ? () => membersProvider.captureFaceSampleForHome(
+                          authProvider.token,
+                          member.id,
+                          selectedHome.id,
+                        )
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),

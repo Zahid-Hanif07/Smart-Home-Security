@@ -25,7 +25,7 @@ class AddMemberScreen extends StatelessWidget {
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: AppColors.black),
         title: const Text(
-          'Add Family Member',
+          'Add a member',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
@@ -39,20 +39,33 @@ class AddMemberScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Member Details',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
+              Text(
+                '${homeProvider.currentHome?.name ?? 'YOUR HOME'} · TRUSTED ACCESS',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 10,
+                  letterSpacing: 1.1,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.xs),
               const Text(
-                'Enter the family member\'s name and relationship to register them in your home security system.',
+                'Who belongs\nat home?',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 28,
+                  height: 1.12,
+                  letterSpacing: -.7,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Add someone you trust. You can enroll their face next.',
                 style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
+                  height: 1.45,
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -65,7 +78,9 @@ class AddMemberScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSoft,
                     borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     membersProvider.errorMessage!,
@@ -91,21 +106,36 @@ class AddMemberScreen extends StatelessWidget {
                 controller: membersProvider.addMemberNameController,
                 decoration: InputDecoration(
                   hintText: 'e.g. Amish',
-                  hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                  hintStyle: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                  ),
                   filled: true,
                   fillColor: AppColors.surface,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.buttonRadius,
+                    ),
                     borderSide: const BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.buttonRadius,
+                    ),
                     borderSide: const BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
-                    borderSide: const BorderSide(color: AppColors.emeraldInk, width: 1.5),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.buttonRadius,
+                    ),
+                    borderSide: const BorderSide(
+                      color: AppColors.emeraldInk,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -125,21 +155,53 @@ class AddMemberScreen extends StatelessWidget {
                 controller: membersProvider.addMemberRelationController,
                 decoration: InputDecoration(
                   hintText: 'e.g. Brother, Sister, Mother, Spouse',
-                  hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                  hintStyle: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                  ),
                   filled: true,
                   fillColor: AppColors.surface,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.buttonRadius,
+                    ),
                     borderSide: const BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.buttonRadius,
+                    ),
                     borderSide: const BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
-                    borderSide: const BorderSide(color: AppColors.emeraldInk, width: 1.5),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.buttonRadius,
+                    ),
+                    borderSide: const BorderSide(
+                      color: AppColors.emeraldInk,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.emeraldSoft,
+                  borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                ),
+                child: const Text(
+                  'Face enrollment is optional and can be completed after saving this member.',
+                  style: TextStyle(
+                    color: AppColors.emeraldInk,
+                    fontSize: 12,
+                    height: 1.4,
                   ),
                 ),
               ),
@@ -163,7 +225,8 @@ class AddMemberScreen extends StatelessWidget {
                   }
 
                   final name = membersProvider.addMemberNameController.text;
-                  final relation = membersProvider.addMemberRelationController.text;
+                  final relation =
+                      membersProvider.addMemberRelationController.text;
 
                   final newMember = await membersProvider.addMember(
                     authProvider.token,
@@ -173,7 +236,9 @@ class AddMemberScreen extends StatelessWidget {
                   );
 
                   if (newMember != null && context.mounted) {
-                    Navigator.of(context).pushReplacementNamed(AppRoutes.memberDetail);
+                    Navigator.of(
+                      context,
+                    ).pushReplacementNamed(AppRoutes.memberDetail);
                   }
                 },
               ),

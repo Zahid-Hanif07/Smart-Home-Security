@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from app.database.supabase_client import SupabaseClientManager
 from app.models.security_log import SecurityLogCreate
-from app.repositories.home_repository import home_repository, is_supabase_configured
+from app.repositories.home_repository import home_repository, is_supabase_configured, is_memory_fallback_enabled
 
 
 class SecurityLogRepository:
@@ -15,9 +15,16 @@ class SecurityLogRepository:
         self._in_memory_logs: Dict[UUID, Dict[str, Any]] = {}
 
     def _get_client(self):
-        client = SupabaseClientManager.get_admin_client() or SupabaseClientManager.get_client()
-        if not client or not is_supabase_configured():
-            return None
+        if not is_supabase_configured():
+            if is_memory_fallback_enabled():
+                return None
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase is not configured; persistent security-log writes are unavailable.")
+        client = SupabaseClientManager.get_admin_client()
+        if not client:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Supabase service-role database access is unavailable; persistent writes are disabled.",
+            )
         return client
 
     def create_security_log(self, home_id: UUID, requesting_user_id: UUID, data: SecurityLogCreate) -> Dict[str, Any]:
@@ -43,6 +50,7 @@ class SecurityLogRepository:
                     if record.get("device_id"):
                         record["device_id"] = UUID(record["device_id"]) if isinstance(record["device_id"], str) else record["device_id"]
                     return record
+                raise RuntimeError("Supabase returned no row after security-log insert")
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

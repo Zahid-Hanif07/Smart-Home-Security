@@ -5,6 +5,7 @@ class LocalStorage {
   static const String _keyOnboardingCompleted = 'otto_onboarding_completed';
   static const String _keyAuthToken = 'otto_auth_token';
   static const String _keyUserProfile = 'otto_user_profile';
+  static const String _keySelectedHomeId = 'otto_selected_home_id';
 
   static String? _authToken;
   static Map<String, dynamic>? _userProfile;
@@ -72,6 +73,29 @@ class LocalStorage {
     } catch (_) {}
   }
 
+  static Future<String?> restoreSelectedHomeId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keySelectedHomeId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveSelectedHomeId(String homeId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keySelectedHomeId, homeId);
+    } catch (_) {}
+  }
+
+  static Future<void> clearSelectedHomeId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keySelectedHomeId);
+    } catch (_) {}
+  }
+
   static Future<bool> isOnboardingCompleted() async {
     if (_onboardingCompletedCache != null) {
       return _onboardingCompletedCache!;
@@ -102,6 +126,7 @@ class LocalStorage {
       await prefs.remove(_keyAuthToken);
       await prefs.remove(_keyUserProfile);
       await prefs.remove(_keyOnboardingCompleted);
+      await prefs.remove(_keySelectedHomeId);
     } catch (_) {}
   }
 }

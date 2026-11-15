@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/app/theme/app_colors.dart';
-import 'package:mobile/app/theme/app_spacing.dart';
 import 'package:mobile/app/theme/app_text_styles.dart';
 
 class AuthHeader extends StatelessWidget {
@@ -20,33 +19,40 @@ class AuthHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Brand icon badge with light pink accent container
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.champagne,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-            border: Border.all(
-              color: AppColors.emeraldInk.withValues(alpha: 0.25),
-              width: 1.0,
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.emeraldInk,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.emeraldInk.withValues(alpha: .14),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(icon, size: 24, color: AppColors.lime),
             ),
-          ),
-          child: Icon(
-            icon,
-            size: 28,
-            color: AppColors.black,
-          ),
+            const SizedBox(width: 12),
+            const Text(
+              'OTTO',
+              style: TextStyle(
+                color: AppColors.emeraldInk,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 3,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          title,
-          style: AppTextStyles.heading1,
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          subtitle,
-          style: AppTextStyles.bodyMedium,
-        ),
+        const SizedBox(height: 25),
+        Text(title, style: AppTextStyles.heading1),
+        const SizedBox(height: 4),
+        Text(subtitle, style: AppTextStyles.bodyMedium),
       ],
     );
   }

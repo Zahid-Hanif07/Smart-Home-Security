@@ -22,6 +22,7 @@ class MjpegStreamService {
   http.Client? _client;
   StreamSubscription<List<int>>? _subscription;
   String? _currentUrl;
+  String? _currentToken;
   final List<int> _buffer = [];
 
   Stream<Uint8List> get frameStream => _frameController.stream;
@@ -29,9 +30,14 @@ class MjpegStreamService {
   bool get isStreaming => statusNotifier.value == CameraStreamStatus.streaming;
 
   /// Start or reconnect MJPEG stream from given URL
-  Future<void> startStream(String streamUrl) async {
+  Future<void> startStream(String streamUrl, {required String? accessToken}) async {
+    if (accessToken == null || accessToken.isEmpty) {
+      _handleError('Sign in to view the protected camera feed');
+      return;
+    }
     if (statusNotifier.value == CameraStreamStatus.streaming &&
         _currentUrl == streamUrl &&
+        _currentToken == accessToken &&
         _subscription != null) {
       return; // Already streaming target URL
     }
@@ -39,11 +45,13 @@ class MjpegStreamService {
     stopStream();
 
     _currentUrl = streamUrl;
+    _currentToken = accessToken;
     statusNotifier.value = CameraStreamStatus.connecting;
 
     try {
       _client = http.Client();
       final request = http.Request('GET', Uri.parse(streamUrl));
+      request.headers['Authorization'] = 'Bearer $accessToken';
       request.headers['Cache-Control'] = 'no-cache';
       request.headers['Pragma'] = 'no-cache';
 
@@ -141,6 +149,7 @@ class MjpegStreamService {
     _client = null;
     _buffer.clear();
     _currentUrl = null;
+    _currentToken = null;
     statusNotifier.value = CameraStreamStatus.idle;
   }
 }

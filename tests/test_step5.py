@@ -42,6 +42,9 @@ class TestStep5FaceRecognition(unittest.TestCase):
         # Create dummy frame and face info dict
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.rectangle(dummy_frame, (100, 100), (300, 300), (255, 255, 255), -1)
+        cv2.circle(dummy_frame, (150, 165), 14, (0, 0, 0), -1)
+        cv2.circle(dummy_frame, (250, 165), 14, (0, 0, 0), -1)
+        cv2.ellipse(dummy_frame, (200, 235), (42, 12), 0, 0, 180, (0, 0, 0), 4)
 
         face_info = {"box": (100, 100, 200, 200), "confidence": 0.95}
         emb = service.compute_embedding(dummy_frame, face_info)
@@ -83,10 +86,14 @@ class TestStep5FaceRecognition(unittest.TestCase):
             embedding_service=emb_service,
             database=self.db,
             threshold=FACE_RECOGNITION_THRESHOLD,
+            allow_local_database=True,
         )
 
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.rectangle(dummy_frame, (100, 100), (300, 300), (255, 255, 255), -1)
+        cv2.circle(dummy_frame, (150, 155), 16, (0, 0, 0), -1)
+        cv2.circle(dummy_frame, (250, 155), 16, (0, 0, 0), -1)
+        cv2.line(dummy_frame, (145, 240), (255, 240), (0, 0, 0), 5)
         face_info = {"box": (100, 100, 200, 200), "confidence": 0.9}
 
         # 1. Empty DB -> Returns Unknown

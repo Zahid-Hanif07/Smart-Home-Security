@@ -32,7 +32,7 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(17),
           side: const BorderSide(color: AppColors.border, width: 1.0),
         ),
       ),

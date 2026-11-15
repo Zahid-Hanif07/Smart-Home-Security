@@ -3,15 +3,20 @@ import 'package:mobile/app/theme/app_colors.dart';
 import 'package:mobile/app/theme/app_spacing.dart';
 import 'package:mobile/app/theme/app_text_styles.dart';
 import 'package:mobile/models/security_log_model.dart';
+import 'package:mobile/core/config/api_config.dart';
 
 class ActivityItem extends StatelessWidget {
   final SecurityLogModel log;
+  final String? homeId;
+  final String? token;
 
-  const ActivityItem({super.key, required this.log});
+  const ActivityItem({super.key, required this.log, this.homeId, this.token});
 
   String _formatTime(DateTime dateTime) {
     final local = dateTime.toLocal();
-    final hour = local.hour > 12 ? local.hour - 12 : (local.hour == 0 ? 12 : local.hour);
+    final hour = local.hour > 12
+        ? local.hour - 12
+        : (local.hour == 0 ? 12 : local.hour);
     final minute = local.minute.toString().padLeft(2, '0');
     final period = local.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
@@ -19,8 +24,12 @@ class ActivityItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAlert = log.eventType.toLowerCase() == 'unknown_person' || log.isAuthorized == false;
-    final isAuthorized = log.eventType.toLowerCase() == 'authorized_person' || log.isAuthorized == true;
+    final isAlert =
+        log.eventType.toLowerCase() == 'unknown_person' ||
+        log.isAuthorized == false;
+    final isAuthorized =
+        log.eventType.toLowerCase() == 'authorized_person' ||
+        log.isAuthorized == true;
 
     IconData iconData = Icons.sensors_outlined;
     Color iconColor = AppColors.black;
@@ -49,11 +58,7 @@ class ActivityItem extends StatelessWidget {
               color: iconBgColor,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              iconData,
-              size: 20,
-              color: iconColor,
-            ),
+            child: Icon(iconData, size: 20, color: iconColor),
           ),
           const SizedBox(width: AppSpacing.md),
 
@@ -69,7 +74,9 @@ class ActivityItem extends StatelessWidget {
                       child: Text(
                         log.displayTitle,
                         style: AppTextStyles.label.copyWith(
-                          fontWeight: isAlert ? FontWeight.w700 : FontWeight.w600,
+                          fontWeight: isAlert
+                              ? FontWeight.w700
+                              : FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -95,6 +102,24 @@ class ActivityItem extends StatelessWidget {
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (log.imagePath != null &&
+                    log.imagePath!.isNotEmpty &&
+                    homeId != null &&
+                    token != null &&
+                    !log.imagePath!.contains('/') &&
+                    !log.imagePath!.contains('\\')) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: 148,
+                    height: 82,
+                    child: Image.network(
+                      '${ApiConfig.baseUrl}/video/homes/$homeId/evidence/${Uri.encodeComponent(log.imagePath!)}',
+                      headers: {'Authorization': 'Bearer $token'},
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
                   ),
                 ],
               ],

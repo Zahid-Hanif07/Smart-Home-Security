@@ -1,7 +1,9 @@
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import httpx
 from app.config.settings import API_BASE_URL
+from app.config.backend_settings import settings as backend_settings
+from app.services.token_helper import get_effective_auth_token
 
 
 class APIClient:
@@ -17,15 +19,18 @@ class APIClient:
     ):
         raw_url = base_url or os.getenv("API_BASE_URL") or API_BASE_URL
         self.base_url = raw_url.rstrip("/")
-        self.auth_token = auth_token
+        # Only a user's scoped access token is accepted here. Never use the
+        # Supabase service-role credential in this desktop-to-API client.
+        self.auth_token = auth_token or os.getenv("SUPABASE_ACCESS_TOKEN") or os.getenv("AUTH_TOKEN") or backend_settings.SUPABASE_ACCESS_TOKEN
         self.timeout = timeout
         self.custom_client = custom_client or client
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self, home_id: Optional[str] = None) -> Dict[str, str]:
         """Construct headers for HTTP requests."""
         headers = {"Content-Type": "application/json"}
-        if self.auth_token:
-            headers["Authorization"] = f"Bearer {self.auth_token}"
+        token = self.auth_token or get_effective_auth_token(home_id=home_id)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         return headers
 
     def health_check(self) -> bool:
@@ -74,18 +79,19 @@ class APIClient:
         }
 
         try:
+            headers = self._get_headers(home_id=home_id)
             if self.custom_client:
-                res = self.custom_client.post(url, json=payload, headers=self._get_headers())
+                res = self.custom_client.post(url, json=payload, headers=headers)
             else:
                 with httpx.Client(timeout=self.timeout) as c:
-                    res = c.post(url, json=payload, headers=self._get_headers())
+                    res = c.post(url, json=payload, headers=headers)
 
             if res.status_code in (200, 201):
                 return res.json()
             print(f"APIClient warning: POST {url} returned status code {res.status_code}")
             return None
-        except Exception as e:
-            print(f"Backend unavailable: security event could not be reported. Details: {e}")
+        except Exception:
+            print("Backend unavailable: security event could not be reported.")
             return None
 
     def create_alert(
@@ -112,18 +118,19 @@ class APIClient:
         }
 
         try:
+            headers = self._get_headers(home_id=home_id)
             if self.custom_client:
-                res = self.custom_client.post(url, json=payload, headers=self._get_headers())
+                res = self.custom_client.post(url, json=payload, headers=headers)
             else:
                 with httpx.Client(timeout=self.timeout) as c:
-                    res = c.post(url, json=payload, headers=self._get_headers())
+                    res = c.post(url, json=payload, headers=headers)
 
             if res.status_code in (200, 201):
                 return res.json()
             print(f"APIClient warning: POST {url} returned status code {res.status_code}")
             return None
-        except Exception as e:
-            print(f"Backend unavailable: alert could not be reported. Details: {e}")
+        except Exception:
+            print("Backend unavailable: alert could not be reported.")
             return None
 
     def get_home_face_records(self, home_id: str) -> Optional[List[Dict[str, Any]]]:
@@ -133,16 +140,17 @@ class APIClient:
 
         url = f"{self.base_url}/api/homes/{home_id}/face-records" if not self.custom_client else f"/api/homes/{home_id}/face-records"
         try:
+            headers = self._get_headers(home_id=home_id)
             if self.custom_client:
-                res = self.custom_client.get(url, headers=self._get_headers())
+                res = self.custom_client.get(url, headers=headers)
             else:
                 with httpx.Client(timeout=self.timeout) as c:
-                    res = c.get(url, headers=self._get_headers())
+                    res = c.get(url, headers=headers)
 
             if res.status_code == 200:
                 return res.json()
             print(f"APIClient warning: GET {url} returned status code {res.status_code}")
             return None
-        except Exception as e:
-            print(f"Backend unavailable: face records could not be retrieved. Details: {e}")
+        except Exception:
+            print("Backend unavailable: face records could not be retrieved.")
             return None

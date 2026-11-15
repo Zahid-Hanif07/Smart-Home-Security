@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from app.database.supabase_client import SupabaseClientManager
 from app.config.backend_settings import settings
 from app.models.face import FaceCreate, FaceResponse
-from app.repositories.home_repository import is_supabase_configured
+from app.repositories.home_repository import is_supabase_configured, is_memory_fallback_enabled
 from app.repositories.member_repository import member_repository
 
 
@@ -17,9 +17,16 @@ class FaceRepository:
         self._in_memory_faces: Dict[UUID, Dict[str, Any]] = {}
 
     def _get_client(self):
-        client = SupabaseClientManager.get_admin_client() or SupabaseClientManager.get_client()
-        if not client or not is_supabase_configured():
-            return None
+        if not is_supabase_configured():
+            if is_memory_fallback_enabled():
+                return None
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase is not configured; persistent face writes are unavailable.")
+        client = SupabaseClientManager.get_admin_client()
+        if not client:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Supabase service-role database access is unavailable; persistent writes are disabled.",
+            )
         return client
 
     def create_face_record(self, member_id: UUID, requesting_user_id: UUID, data: FaceCreate) -> Dict[str, Any]:
@@ -45,6 +52,7 @@ class FaceRepository:
                     record["id"] = UUID(record["id"]) if isinstance(record["id"], str) else record["id"]
                     record["member_id"] = UUID(record["member_id"]) if isinstance(record["member_id"], str) else record["member_id"]
                     return record
+                raise RuntimeError("Supabase returned no row after face-record insert")
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

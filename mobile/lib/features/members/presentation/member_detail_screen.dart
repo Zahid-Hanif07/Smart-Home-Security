@@ -14,7 +14,10 @@ class MemberDetailScreen extends StatelessWidget {
   void _initFaces(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final membersProvider = Provider.of<MembersProvider>(context, listen: false);
+      final membersProvider = Provider.of<MembersProvider>(
+        context,
+        listen: false,
+      );
       final member = membersProvider.selectedMember;
 
       if (member != null) {
@@ -48,7 +51,8 @@ class MemberDetailScreen extends StatelessWidget {
       );
     }
 
-    final hasRegisteredFace = membersProvider.memberFaces.isNotEmpty || member.faceCount > 0;
+    final hasRegisteredFace =
+        membersProvider.memberFaces.isNotEmpty || member.faceCount > 0;
     final sampleCount = membersProvider.memberFaces.isNotEmpty
         ? membersProvider.memberFaces.length
         : member.faceCount;
@@ -61,7 +65,7 @@ class MemberDetailScreen extends StatelessWidget {
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: AppColors.black),
         title: Text(
-          member.name,
+          'Member profile',
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
@@ -93,7 +97,8 @@ class MemberDetailScreen extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (member.relation != null && member.relation!.isNotEmpty) ...[
+                    if (member.relation != null &&
+                        member.relation!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         member.relation!,
@@ -118,7 +123,9 @@ class MemberDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.champagne,
                     borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                    border: Border.all(color: AppColors.emeraldInk.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppColors.emeraldInk.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     membersProvider.successMessage!,
@@ -139,7 +146,9 @@ class MemberDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSoft,
                     borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     membersProvider.errorMessage!,
@@ -253,9 +262,13 @@ class MemberDetailScreen extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          hasRegisteredFace ? '✓ Face Registered' : '● Not Registered',
+                          hasRegisteredFace
+                              ? '✓ Face Registered'
+                              : '● Not Registered',
                           style: TextStyle(
-                            color: hasRegisteredFace ? AppColors.emeraldInk : AppColors.error,
+                            color: hasRegisteredFace
+                                ? AppColors.emeraldInk
+                                : AppColors.error,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
@@ -276,7 +289,9 @@ class MemberDetailScreen extends StatelessWidget {
                     const SizedBox(height: AppSpacing.md),
 
                     MemberActionButton(
-                      label: hasRegisteredFace ? 'Re-register Face' : 'Register Face',
+                      label: hasRegisteredFace
+                          ? 'Re-register Face'
+                          : 'Register Face',
                       icon: Icons.camera_alt_rounded,
                       onPressed: () async {
                         if (hasRegisteredFace) {
@@ -287,32 +302,47 @@ class MemberDetailScreen extends StatelessWidget {
                               backgroundColor: AppColors.surface,
                               title: const Text('Re-register Face'),
                               content: Text(
-                                  'This will replace existing face samples for ${member.name}. Proceed?'),
+                                'This will replace existing face samples for ${member.name}. Proceed?',
+                              ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.of(ctx).pop(false),
-                                  child: const Text('Cancel',
-                                      style: TextStyle(color: AppColors.textSecondary)),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
                                 ),
                                 TextButton(
                                   onPressed: () => Navigator.of(ctx).pop(true),
-                                  child: const Text('Proceed',
-                                      style: TextStyle(
-                                          color: AppColors.emeraldInk,
-                                          fontWeight: FontWeight.w700)),
+                                  child: const Text(
+                                    'Proceed',
+                                    style: TextStyle(
+                                      color: AppColors.emeraldInk,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           );
 
                           if (confirm == true && context.mounted) {
-                            await membersProvider.clearMemberFaces(authProvider.token, member.id);
+                            await membersProvider.clearMemberFaces(
+                              authProvider.token,
+                              member.id,
+                            );
                             if (context.mounted) {
-                              Navigator.of(context).pushNamed(AppRoutes.registerFace);
+                              Navigator.of(
+                                context,
+                              ).pushNamed(AppRoutes.registerFace);
                             }
                           }
                         } else {
-                          Navigator.of(context).pushNamed(AppRoutes.registerFace);
+                          Navigator.of(
+                            context,
+                          ).pushNamed(AppRoutes.registerFace);
                         }
                       },
                     ),
@@ -334,26 +364,35 @@ class MemberDetailScreen extends StatelessWidget {
                       backgroundColor: AppColors.surface,
                       title: const Text('Delete Member'),
                       content: Text(
-                          'Are you sure you want to remove ${member.name} and all associated face records?'),
+                        'Are you sure you want to remove ${member.name} and all associated face records?',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text('Cancel',
-                              style: TextStyle(color: AppColors.textSecondary)),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
                         ),
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text('Delete',
-                              style: TextStyle(
-                                  color: AppColors.error, fontWeight: FontWeight.w700)),
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   );
 
                   if (confirm == true && context.mounted) {
-                    final success =
-                        await membersProvider.deleteMember(authProvider.token, member.id);
+                    final success = await membersProvider.deleteMember(
+                      authProvider.token,
+                      member.id,
+                    );
                     if (success && context.mounted) {
                       Navigator.of(context).pop();
                     }

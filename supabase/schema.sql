@@ -46,8 +46,13 @@ CREATE TABLE IF NOT EXISTS public.homes (
     owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     address TEXT NULL,
+    is_initial BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_homes_one_initial_per_owner
+    ON public.homes(owner_id)
+    WHERE is_initial;
 
 -- Index for fast owner queries
 CREATE INDEX IF NOT EXISTS idx_homes_owner ON public.homes(owner_id);

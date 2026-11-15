@@ -3,11 +3,7 @@ class ApiException implements Exception {
   final int? statusCode;
   final dynamic details;
 
-  ApiException({
-    required this.message,
-    this.statusCode,
-    this.details,
-  });
+  ApiException({required this.message, this.statusCode, this.details});
 
   factory ApiException.fromStatusCode(int code, [dynamic body]) {
     String detailMsg = '';
@@ -30,7 +26,8 @@ class ApiException implements Exception {
         );
       case 403:
         return ApiException(
-          message: "You don't have permission to perform this action.$detailMsg",
+          message:
+              "You don't have permission to perform this action.$detailMsg",
           statusCode: 403,
           details: body,
         );
@@ -38,6 +35,13 @@ class ApiException implements Exception {
         return ApiException(
           message: 'Resource not found$detailMsg',
           statusCode: 404,
+          details: body,
+        );
+      case 409:
+        return ApiException(
+          message:
+              'Command conflict. The same command ID was used with different data$detailMsg',
+          statusCode: 409,
           details: body,
         );
       case 422:
@@ -48,9 +52,16 @@ class ApiException implements Exception {
         );
       case 500:
       case 502:
+        return ApiException(
+          message:
+              'Database operation failed; the save was not confirmed. Please retry.',
+          statusCode: code,
+          details: body,
+        );
       case 503:
         return ApiException(
-          message: 'Server error. Please try again later.',
+          message:
+              'Persistent storage is unavailable; nothing was saved. Please retry when the service is available.',
           statusCode: code,
           details: body,
         );
@@ -65,7 +76,8 @@ class ApiException implements Exception {
 
   factory ApiException.connectionError() {
     return ApiException(
-      message: 'Unable to connect to server. Please check your connection and verify FastAPI is running.',
+      message:
+          'Unable to connect to server. Please check your connection and verify FastAPI is running.',
       statusCode: null,
     );
   }

@@ -32,22 +32,24 @@ class HomeHeader extends StatelessWidget {
       child: Row(
         children: [
           // User avatar badge with soft champagne accent container
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.champagne,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.emeraldInk.withValues(alpha: 0.3),
-                width: 1.0,
+          InkWell(
+            onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.champagne,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.emeraldInk.withValues(alpha: 0.3),
+                  width: 1.0,
+                ),
               ),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initial,
-              style: AppTextStyles.heading3.copyWith(
-                color: AppColors.black,
+              alignment: Alignment.center,
+              child: Text(
+                initial,
+                style: AppTextStyles.heading3.copyWith(color: AppColors.black),
               ),
             ),
           ),
@@ -72,21 +74,31 @@ class HomeHeader extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.swap_horiz_rounded, size: 16, color: AppColors.emeraldInk),
+                      const Icon(
+                        Icons.swap_horiz_rounded,
+                        size: 16,
+                        color: AppColors.emeraldInk,
+                      ),
                       const SizedBox(width: 4),
                       Container(
                         width: 7,
                         height: 7,
                         decoration: BoxDecoration(
-                          color: isBackendConnected ? AppColors.success : AppColors.error,
+                          color: isBackendConnected
+                              ? AppColors.success
+                              : AppColors.error,
                           shape: BoxShape.circle,
                         ),
                       ),
                     ],
                   ),
                   Text(
-                    user != null ? 'Owner: ${user!.name}' : 'Smart Home Security',
-                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                    user != null
+                        ? 'Owner: ${user!.name}'
+                        : 'Smart Home Security',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

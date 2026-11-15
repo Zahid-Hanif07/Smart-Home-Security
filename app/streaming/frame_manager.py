@@ -19,6 +19,7 @@ class FrameManager:
         self._last_update_time: float = 0.0
         self._frame_count: int = 0
         self._active_clients: int = 0
+        self._home_id: Optional[str] = None
         self.default_jpeg_quality = default_jpeg_quality
 
     def update_frame(self, frame: np.ndarray, jpeg_quality: Optional[int] = None) -> bool:
@@ -55,7 +56,7 @@ class FrameManager:
             # Prevent crashes during frame encoding
             return False
 
-    def update_jpeg(self, jpeg_bytes: bytes) -> bool:
+    def update_jpeg(self, jpeg_bytes: bytes, home_id: Optional[str] = None) -> bool:
         """Directly update latest encoded JPEG bytes (e.g. from local IPC/HTTP publisher).
 
         Args:
@@ -67,10 +68,16 @@ class FrameManager:
         if not jpeg_bytes or not isinstance(jpeg_bytes, bytes):
             return False
 
+        decoded = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if decoded is None or decoded.size == 0 or decoded.shape[0] > 4320 or decoded.shape[1] > 7680:
+            return False
+
         with self._lock:
             self._latest_jpeg = jpeg_bytes
             self._last_update_time = time.time()
             self._frame_count += 1
+            if home_id:
+                self._home_id = str(home_id)
 
         return True
 
@@ -101,13 +108,17 @@ class FrameManager:
             available = self._latest_jpeg is not None and age >= 0 and age <= 5.0
 
             return {
-                "streaming": True,
+                "streaming": available,
                 "camera_available": available,
                 "frame_available": available,
                 "active_clients": self._active_clients,
                 "frame_count": self._frame_count,
                 "last_frame_age_seconds": round(age, 2) if age >= 0 else None,
             }
+
+    def get_home_id(self) -> Optional[str]:
+        with self._lock:
+            return self._home_id
 
     def increment_clients(self) -> int:
         """Increment count of active streaming clients."""

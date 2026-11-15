@@ -12,7 +12,10 @@ import 'package:mobile/providers/auth_provider.dart';
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
 
-  Future<void> _handleRegister(BuildContext context, AuthProvider authProvider) async {
+  Future<void> _handleRegister(
+    BuildContext context,
+    AuthProvider authProvider,
+  ) async {
     if (!authProvider.registerFormKey.currentState!.validate()) return;
     final success = await authProvider.register(
       authProvider.registerNameController.text,
@@ -21,11 +24,14 @@ class RegisterScreen extends StatelessWidget {
     );
 
     if (success && context.mounted) {
+      if (authProvider.isConfirmationPending) {
+        authProvider.resetRegisterForm(preserveConfirmationState: true);
+        return;
+      }
       authProvider.resetRegisterForm();
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.home,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
     }
   }
 
@@ -59,8 +65,9 @@ class RegisterScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const AuthHeader(
-                    title: 'Create Account',
-                    subtitle: 'Register your profile to manage smart home security',
+                    title: 'Make home\nfeel safer.',
+                    subtitle:
+                        'Create your account to bring your home security together.',
                     icon: Icons.person_add_outlined,
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -73,7 +80,9 @@ class RegisterScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                       decoration: BoxDecoration(
                         color: AppColors.champagneSoft,
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusSm,
+                        ),
                         border: Border.all(
                           color: AppColors.error.withValues(alpha: 0.3),
                           width: 1.0,
@@ -97,6 +106,21 @@ class RegisterScreen extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                  ],
+                  if (authProvider.isConfirmationPending) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: AppColors.emeraldSoft,
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                      ),
+                      child: const Text(
+                        'Account created. Confirm your email, then sign in to finish profile and home setup.',
+                        style: TextStyle(color: AppColors.emeraldInk),
                       ),
                     ),
                   ],
@@ -172,7 +196,8 @@ class RegisterScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: AppSpacing.md),
                           AuthTextField(
-                            controller: authProvider.registerConfirmPasswordController,
+                            controller:
+                                authProvider.registerConfirmPasswordController,
                             label: 'Confirm Password',
                             hint: '••••••••',
                             prefixIcon: Icons.lock_reset_rounded,
@@ -181,7 +206,10 @@ class RegisterScreen extends StatelessWidget {
                               if (value == null || value.isEmpty) {
                                 return 'Please confirm your password.';
                               }
-                              if (value != authProvider.registerPasswordController.text) {
+                              if (value !=
+                                  authProvider
+                                      .registerPasswordController
+                                      .text) {
                                 return 'Passwords do not match.';
                               }
                               return null;

@@ -1,0 +1,60 @@
+-- =============================================================================
+-- Migration: 202610150002_device_credentials.sql
+-- Phase 3A — Secure Device Authentication and Revocation
+--
+-- Summary
+-- -------
+-- Adds the credential_hash column to the devices table so that each device
+-- can hold a bcrypt hash of its opaque bearer token.  The raw token is never
+-- stored anywhere — only this hash.
+--
+-- Additive only — no existing tables, columns, policies, or indexes are
+-- altered in a breaking way.  Safe to apply to a live database.
+--
+-- Manual application instructions
+-- --------------------------------
+-- 1. Apply via the Supabase SQL Editor (recommended for production):
+--    Project → SQL Editor → paste full file contents → Run
+-- 2. Alternatively, via the Supabase CLI (local dev workflow only):
+--    supabase db push
+-- 3. NEVER apply automatically, from application startup code, or via any
+--    automated CI pipeline targeting a shared / production database.
+--
+-- Verification query (run after applying to confirm the column exists):
+-- ---------------------------------------------------------------------
+--   SELECT column_name, data_type, is_nullable
+--   FROM information_schema.columns
+--   WHERE table_schema = 'public'
+--     AND table_name   = 'devices'
+--     AND column_name  = 'credential_hash';
+-- Expected: one row with data_type='text', is_nullable='YES'.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 1. Add credential_hash column to devices
+--
+-- Stores the bcrypt hash of the device's opaque bearer token.
+-- NULL for any device that has not yet completed a valid pairing claim, or
+-- whose credential has been revoked.
+--
+-- The raw token returned to the device at claim time is never persisted.
+-- Lookup at auth time is always by device_id (primary key) — the hash is then
+-- verified with a constant-time bcrypt compare.  No index on credential_hash
+-- is needed or useful (bcrypt output is non-deterministic and non-searchable).
+-- -----------------------------------------------------------------------------
+ALTER TABLE public.devices
+    ADD COLUMN IF NOT EXISTS credential_hash TEXT NULL;
+
+-- -----------------------------------------------------------------------------
+-- 2. Status accepted values — informational comment only
+--
+-- The status column is TEXT with no CHECK constraint in the original schema.
+-- Phase 3A adds 'revoked' as a valid value.  The application enforces all
+-- valid transitions.  Accepted values after this migration:
+--   'offline'  — device registered, never connected or disconnected.
+--   'online'   — device actively streaming (set by Phase 3B publisher).
+--   'revoked'  — credential cleared by the home owner; device is rejected.
+-- -----------------------------------------------------------------------------
+
+-- No DDL change required — the column already accepts any TEXT value.
+-- The application layer is responsible for writing only accepted status strings.

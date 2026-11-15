@@ -30,6 +30,8 @@ class SupabaseClientManager:
         SECURITY WARNING: Service Role Key is strictly server-side only.
         """
         if cls._admin_instance is None:
+            if not settings.SUPABASE_SERVICE_ROLE_KEY:
+                return None
             try:
                 cls._admin_instance = create_client(
                     settings.SUPABASE_URL,

@@ -57,5 +57,23 @@ void main() {
       expect(face.id, 'face-1');
       expect(face.memberId, 'mem-101');
     });
+
+    test('4. Member and face writes require the selected member home', () async {
+      final provider = MembersProvider();
+      final created = await provider.addMember(null, '', 'Alex', 'Owner');
+      expect(created, isNull);
+      expect(provider.errorMessage, contains('Select a home'));
+
+      provider.selectMember(
+        MemberModel(
+          id: 'mem-1',
+          homeId: 'home-1',
+          name: 'Alex',
+          createdAt: DateTime.now(),
+        ),
+      );
+      await provider.captureFaceSampleForHome(null, 'mem-1', 'home-2');
+      expect(provider.errorMessage, contains('owns this member'));
+    });
   });
 }

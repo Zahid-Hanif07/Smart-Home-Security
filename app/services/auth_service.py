@@ -33,6 +33,12 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        if not settings.SUPABASE_JWT_SECRET:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication verification is not configured.",
+            )
+
         # 1. Primary: Verify real Supabase Auth token via Supabase Auth API
         if is_supabase_configured():
             client = SupabaseClientManager.get_client()

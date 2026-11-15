@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/app/theme/app_colors.dart';
 import 'package:mobile/app/theme/app_spacing.dart';
-import 'package:mobile/app/theme/app_text_styles.dart';
 import 'package:mobile/core/widgets/app_button.dart';
 import 'package:mobile/core/widgets/app_text_field.dart';
 import 'package:mobile/providers/auth_provider.dart';
@@ -11,7 +10,11 @@ import 'package:mobile/providers/home_provider.dart';
 class AddHomeScreen extends StatelessWidget {
   const AddHomeScreen({super.key});
 
-  Future<void> _handleSubmit(BuildContext context, AuthProvider authProvider, HomeProvider homeProvider) async {
+  Future<void> _handleSubmit(
+    BuildContext context,
+    AuthProvider authProvider,
+    HomeProvider homeProvider,
+  ) async {
     if (!homeProvider.addHomeFormKey.currentState!.validate()) return;
     final newHome = await homeProvider.createHome(
       authProvider.token,
@@ -42,7 +45,7 @@ class AddHomeScreen extends StatelessWidget {
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: AppColors.black),
         title: const Text(
-          'Add New Home',
+          'Add a home',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
@@ -59,12 +62,28 @@ class AddHomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Property Information',
-                  style: AppTextStyles.heading2,
+                  'YOUR SECURITY LOCATIONS',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 const Text(
-                  'Register a new home property to pair security hardware and configure authorized family members.',
+                  'Set up a\nnew home.',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 28,
+                    height: 1.12,
+                    letterSpacing: -.7,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                const Text(
+                  'Keep each property, camera, and trusted person organized.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -79,7 +98,9 @@ class AddHomeScreen extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                     decoration: BoxDecoration(
                       color: AppColors.champagneSoft,
-                      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.cardRadius,
+                      ),
                       border: Border.all(
                         color: AppColors.error.withValues(alpha: 0.3),
                       ),
@@ -98,8 +119,8 @@ class AddHomeScreen extends StatelessWidget {
                 // Home Name Field
                 AppTextField(
                   controller: homeProvider.addHomeNameController,
-                  label: 'Home / Property Name',
-                  hint: 'e.g. Main Residence, Beach House',
+                  label: 'Home name',
+                  hint: 'e.g. Main Residence',
                   prefixIcon: Icons.home_rounded,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -113,16 +134,31 @@ class AddHomeScreen extends StatelessWidget {
                 // Address Field (Optional)
                 AppTextField(
                   controller: homeProvider.addHomeAddressController,
-                  label: 'Property Address (Optional)',
-                  hint: 'e.g. 124 Ocean Drive, Suite 4B',
+                  label: 'Address · optional',
+                  hint: 'Street, city, or area',
                   prefixIcon: Icons.location_on_outlined,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(color: AppColors.champagne, borderRadius: BorderRadius.circular(AppSpacing.cardRadius)),
+                  child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Private to your account', style: TextStyle(color: AppColors.emeraldInk, fontSize: 10, fontWeight: FontWeight.w700)),
+                    SizedBox(height: 3),
+                    Text('Your home and its security activity are visible to authorized members only.', style: TextStyle(color: AppColors.textSecondary, fontSize: 9, height: 1.4)),
+                  ]),
                 ),
                 const SizedBox(height: AppSpacing.xl),
 
                 AppButton(
-                  text: 'Save & Select Home',
+                  text: 'Save home',
                   isLoading: homeProvider.isLoading,
-                  onPressed: () => _handleSubmit(context, Provider.of<AuthProvider>(context, listen: false), homeProvider),
+                  onPressed: () => _handleSubmit(
+                    context,
+                    Provider.of<AuthProvider>(context, listen: false),
+                    homeProvider,
+                  ),
                 ),
               ],
             ),

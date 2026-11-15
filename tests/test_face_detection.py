@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 import cv2
+from unittest.mock import Mock
 from app.security.motion_detection_service import MotionDetectionService
 from app.security.face_detection_service import FaceDetectionService
 from app.security.security_service import SecurityService
@@ -9,19 +10,20 @@ from app.security.security_service import SecurityService
 class TestFaceDetection(unittest.TestCase):
 
     def setUp(self):
-        self.security_service = SecurityService()
+        self.security_service = SecurityService(face_process_every_n_frames=1)
         self.face_service = FaceDetectionService()
 
-    def test_no_motion_bypasses_face_detection(self):
-        """Test 1 — No motion: Face detection should not run on static background."""
+    def test_face_detection_runs_even_without_motion(self):
+        """Faces are sampled on a schedule independent of motion detection."""
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        
-        # Init background
-        self.security_service.process_frame(frame)
-        
-        # Static frame
-        out_frame = self.security_service.process_frame(frame)
-        self.assertIsNotNone(out_frame)
+        detector = Mock(return_value=[])
+        self.security_service.face_service.detect_faces = detector
+        self.security_service.recognition_service.recognize_faces = Mock(return_value=[])
+        self.security_service.event_service.process_recognition_results = Mock()
+
+        self.security_service.process_security_frame(frame)
+        self.security_service.process_security_frame(frame)
+        self.assertEqual(detector.call_count, 2)
 
     def test_face_detection_service_initialization(self):
         """Verify FaceDetectionService initializes YuNet ONNX model correctly."""

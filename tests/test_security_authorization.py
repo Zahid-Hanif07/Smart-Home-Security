@@ -124,6 +124,20 @@ class TestSecurityAuthorization(unittest.TestCase):
         self.assertEqual(client.get(f"/api/homes/{self.home_b_id}/alerts", headers=self.headers_a).status_code, 403)
         self.assertEqual(client.put(f"/api/alerts/{alert_b_id}/read", json={"is_read": True}, headers=self.headers_a).status_code, 403)
 
+    def test_05_camera_status_and_evidence_require_owner_session(self):
+        unauthenticated = client.get("/video/status", params={"home_id": self.home_a_id})
+        self.assertEqual(unauthenticated.status_code, 401)
+
+        cross_home_status = client.get(
+            "/video/status", params={"home_id": self.home_b_id}, headers=self.headers_a
+        )
+        self.assertEqual(cross_home_status.status_code, 403)
+
+        cross_home_evidence = client.get(
+            f"/video/homes/{self.home_b_id}/evidence/missing.jpg", headers=self.headers_a
+        )
+        self.assertEqual(cross_home_evidence.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

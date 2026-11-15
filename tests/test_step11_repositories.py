@@ -2,7 +2,8 @@ import sys
 import os
 import jwt
 import unittest
-from uuid import uuid4
+from unittest.mock import patch
+from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -147,6 +148,67 @@ class TestStep11Repositories(unittest.TestCase):
             print("\n[INFO] Real Supabase integration tests could not be executed because no configured test Supabase project was available.")
         else:
             print("\n[INFO] Real Supabase connection configured and active.")
+
+    def test_07_initial_home_retry_reuses_saved_home(self):
+        first = client.post("/api/homes/initial", headers=self.headers1)
+        second = client.post("/api/homes/initial", headers=self.headers1)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(len(client.get("/api/homes", headers=self.headers1).json()), 1)
+
+    def test_08_existing_home_prevents_automatic_duplicate(self):
+        existing = client.post("/api/homes", json={"name": "Existing"}, headers=self.headers1)
+        ensured = client.post("/api/homes/initial", headers=self.headers1)
+        self.assertEqual(existing.status_code, 201)
+        self.assertEqual(ensured.status_code, 200)
+        self.assertEqual(ensured.json()["id"], existing.json()["id"])
+        self.assertEqual(len(client.get("/api/homes", headers=self.headers1).json()), 1)
+
+    def test_09_owner_is_always_derived_from_verified_token(self):
+        response = client.post(
+            "/api/homes",
+            json={"name": "Token-owned", "owner_id": str(self.user2_id)},
+            headers=self.headers1,
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["owner_id"], str(self.user1_id))
+
+    def test_10_non_owner_cannot_edit_home(self):
+        created = client.post("/api/homes", json={"name": "Owner-only"}, headers=self.headers1)
+        home_id = created.json()["id"]
+        denied = client.put(
+            f"/api/homes/{home_id}",
+            json={"name": "Changed by another user"},
+            headers=self.headers2,
+        )
+        self.assertEqual(denied.status_code, 403)
+        unchanged = client.get(f"/api/homes/{home_id}", headers=self.headers1)
+        self.assertEqual(unchanged.json()["name"], "Owner-only")
+
+    def test_11_unconfigured_database_does_not_fall_back_to_memory_in_production_mode(self):
+        with patch.dict(os.environ, {"TEST_ISOLATED_MODE": "0", "USE_MOCK_DATABASE": "0"}):
+            with patch.object(settings, "SUPABASE_URL", "https://demo-project.supabase.co"), patch.object(settings, "SUPABASE_ANON_KEY", "dummy_anon_key"):
+                with self.assertRaises(Exception) as raised:
+                    home_repository._get_client()
+        self.assertEqual(getattr(raised.exception, "status_code", None), 503)
+
+    def test_12_real_supabase_write_survives_a_fresh_list_read(self):
+        if (
+            os.getenv("RUN_LIVE_SUPABASE_TESTS") != "1"
+            or not is_supabase_configured()
+            or SupabaseClientManager.get_admin_client() is None
+        ):
+            self.skipTest("Requires explicitly enabled Supabase integration settings and service-role access.")
+        created = client.post("/api/homes/initial", headers=self.headers1)
+        self.assertEqual(created.status_code, 200, created.text)
+        retried = client.post("/api/homes/initial", headers=self.headers1)
+        self.assertEqual(retried.status_code, 200, retried.text)
+        self.assertEqual(retried.json()["id"], created.json()["id"])
+        listed = client.get("/api/homes", headers=self.headers1)
+        self.assertEqual(listed.status_code, 200, listed.text)
+        self.assertIn(created.json()["id"], [home["id"] for home in listed.json()])
+        self.assertNotIn(UUID(created.json()["id"]), home_repository._in_memory_homes)
 
 
 if __name__ == "__main__":

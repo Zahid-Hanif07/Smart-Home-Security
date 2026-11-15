@@ -39,10 +39,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Add New Home'), findsOneWidget);
-      expect(find.text('Property Information'), findsOneWidget);
-      expect(find.text('Home / Property Name'), findsOneWidget);
-      expect(find.text('Save & Select Home'), findsOneWidget);
+      expect(find.text('Add a home'), findsOneWidget);
+      expect(find.text('Home name'), findsOneWidget);
+      expect(find.text('Address · optional'), findsOneWidget);
+      expect(find.text('Save home'), findsOneWidget);
     });
   });
 }

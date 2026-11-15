@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from app.database.supabase_client import SupabaseClientManager
 from app.config.backend_settings import settings
 from app.models.member import MemberCreate, MemberUpdate, MemberResponse
-from app.repositories.home_repository import home_repository, is_supabase_configured
+from app.repositories.home_repository import home_repository, is_supabase_configured, is_memory_fallback_enabled
 
 
 class MemberRepository:
@@ -16,9 +16,16 @@ class MemberRepository:
         self._in_memory_members: Dict[UUID, Dict[str, Any]] = {}
 
     def _get_client(self):
-        client = SupabaseClientManager.get_admin_client() or SupabaseClientManager.get_client()
-        if not client or not is_supabase_configured():
-            return None
+        if not is_supabase_configured():
+            if is_memory_fallback_enabled():
+                return None
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase is not configured; persistent member writes are unavailable.")
+        client = SupabaseClientManager.get_admin_client()
+        if not client:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Supabase service-role database access is unavailable; persistent writes are disabled.",
+            )
         return client
 
     def create_member(self, home_id: UUID, requesting_user_id: UUID, data: MemberCreate) -> Dict[str, Any]:
@@ -42,6 +49,7 @@ class MemberRepository:
                     if record.get("user_id"):
                         record["user_id"] = UUID(record["user_id"]) if isinstance(record["user_id"], str) else record["user_id"]
                     return record
+                raise RuntimeError("Supabase returned no row after member insert")
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -138,6 +146,7 @@ class MemberRepository:
                     if updated.get("user_id"):
                         updated["user_id"] = UUID(updated["user_id"]) if isinstance(updated["user_id"], str) else updated["user_id"]
                     return updated
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member update was not applied.")
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

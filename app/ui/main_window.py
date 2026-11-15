@@ -1,10 +1,12 @@
 import sys
 from datetime import datetime
+import time
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap, QIcon
 
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QMainWindow,
     QWidget,
     QLabel,
@@ -20,8 +22,15 @@ from PySide6.QtWidgets import (
 from app.ui.camera_worker import CameraWorker
 from app.ui.styles import DARK_SECURITY_THEME
 from app.security.face_database import FaceDatabase
-
-
+from app.ui.pair_camera_dialog import PairCameraDialog
+from app.security.face_occlusion_runtime import (
+    STATUS_FAILED,
+    STATUS_INVALID,
+    STATUS_NO_FACE,
+    STATUS_STALE,
+    STATUS_SUCCESS,
+    STATUS_UNAVAILABLE,
+)
 class MainWindow(QMainWindow):
     """Main Desktop Security Dashboard window built with PySide6."""
 
@@ -33,19 +42,13 @@ class MainWindow(QMainWindow):
 
         self.camera_worker = None
         self.database = FaceDatabase()
-
         self._init_ui()
         self.setStyleSheet(DARK_SECURITY_THEME)
         self._log_event("Security Dashboard initialized.")
         self._check_initial_database_status()
 
     def _check_initial_database_status(self) -> None:
-        """Log database status on startup."""
-        names = self.database.get_registered_names()
-        if names:
-            self._log_event(f"Loaded local face database with {len(names)} registered person(s): {', '.join(names)}")
-        else:
-            self._log_event("Notice: No registered faces in database. Identity recognition will report UNKNOWN.")
+        """Remote face records load when the camera worker starts with a home context."""
 
     def _init_ui(self) -> None:
         """Initialize all PySide6 UI layouts and widgets."""
@@ -181,9 +184,18 @@ class MainWindow(QMainWindow):
         # 7. Door Status
         lbl_door_title = QLabel("Door Lock:")
         lbl_door_title.setStyleSheet("font-weight: bold; color: #a6adc8;")
-        self.badge_door = QLabel("LOCKED")
+        self.badge_door = QLabel("NOT CONNECTED")
         self.badge_door.setObjectName("statusBadge")
-        self.badge_door.setProperty("status", "locked")
+        self.badge_door.setProperty("status", "backend_offline")
+
+        lbl_face_occ_title = QLabel("FaceOcc:")
+        lbl_face_occ_title.setStyleSheet("font-weight: bold; color: #a6adc8;")
+        self.badge_face_occ = QLabel("WAITING")
+        self.badge_face_occ.setObjectName("statusBadge")
+        self.badge_face_occ.setProperty("status", "identity_unknown")
+        self.lbl_face_occ_detail = QLabel("Waiting for a diagnostic sample.")
+        self.lbl_face_occ_detail.setWordWrap(True)
+        self.lbl_face_occ_detail.setStyleSheet("color: #a6adc8;")
 
         layout.addWidget(lbl_cam_title, 0, 0)
         layout.addWidget(self.badge_camera, 0, 1)
@@ -205,6 +217,10 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(lbl_door_title, 6, 0)
         layout.addWidget(self.badge_door, 6, 1)
+
+        layout.addWidget(lbl_face_occ_title, 7, 0)
+        layout.addWidget(self.badge_face_occ, 7, 1)
+        layout.addWidget(self.lbl_face_occ_detail, 8, 0, 1, 2)
 
         return group
 
@@ -230,6 +246,11 @@ class MainWindow(QMainWindow):
         cam_btn_layout.addWidget(self.btn_stop)
 
         layout.addLayout(cam_btn_layout)
+
+        self.btn_pair_camera = QPushButton("Pair Camera")
+        self.btn_pair_camera.setObjectName("btnPairCamera")
+        self.btn_pair_camera.clicked.connect(self.open_pair_camera_dialog)
+        layout.addWidget(self.btn_pair_camera)
 
         return group
 
@@ -267,6 +288,7 @@ class MainWindow(QMainWindow):
         self.btn_stop.setEnabled(True)
 
         self._update_badge(self.badge_camera, "ONLINE", "online")
+        self._reset_face_occlusion_display()
 
         # Create worker thread
         self.camera_worker = CameraWorker()
@@ -274,11 +296,25 @@ class MainWindow(QMainWindow):
         self.camera_worker.status_updated.connect(self.on_status_updated)
         self.camera_worker.identity_updated.connect(self.on_identity_updated)
         self.camera_worker.backend_status_updated.connect(self.on_backend_status_updated)
+        self.camera_worker.face_occlusion_updated.connect(self.on_face_occlusion_updated)
         self.camera_worker.log_event.connect(self._log_event)
         self.camera_worker.error_occurred.connect(self.on_camera_error)
         self.camera_worker.stream_stopped.connect(self.on_stream_stopped)
 
         self.camera_worker.start()
+
+    def open_pair_camera_dialog(self) -> None:
+        dialog = PairCameraDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        publisher_ready = True
+        if self.camera_worker is not None:
+            publisher_ready = self.camera_worker.frame_publisher.reload_device_credential()
+        message = "The device credential was stored securely in Windows Credential Manager."
+        if not publisher_ready:
+            message += " Restart the camera to reload the paired credential."
+        QMessageBox.information(self, "Camera paired", message)
 
     def stop_camera(self) -> None:
         """Safely stop camera worker thread."""
@@ -316,20 +352,18 @@ class MainWindow(QMainWindow):
     @Slot(str, str)
     def on_identity_updated(self, identity: str, status: str) -> None:
         """Update identity name and security status badges dynamically."""
-        if self.database.is_empty():
-            self._update_badge(self.badge_identity, "No registered faces", "no_face")
-            self._update_badge(self.badge_status, "—", "no_face")
-            return
-
         if identity == "—":
             self._update_badge(self.badge_identity, "—", "no_face")
             self._update_badge(self.badge_status, "—", "no_face")
         elif identity == "UNKNOWN":
             self._update_badge(self.badge_identity, "UNKNOWN", "identity_unknown")
             self._update_badge(self.badge_status, "UNAUTHORIZED", "unauthorized")
+        elif identity == "UNVERIFIED":
+            self._update_badge(self.badge_identity, "UNVERIFIED", "identity_unknown")
+            self._update_badge(self.badge_status, "CHECK REQUIRED", "backend_offline")
         else:
             self._update_badge(self.badge_identity, identity, "identity_known")
-            self._update_badge(self.badge_status, "AUTHORIZED", "authorized")
+            self._update_badge(self.badge_status, status, "authorized")
 
     @Slot(bool)
     def on_backend_status_updated(self, is_online: bool) -> None:
@@ -338,6 +372,48 @@ class MainWindow(QMainWindow):
             self._update_badge(self.badge_backend, "ONLINE", "backend_online")
         else:
             self._update_badge(self.badge_backend, "OFFLINE", "backend_offline")
+
+    def on_face_occlusion_updated(self, diagnostic) -> None:
+        """Render diagnostic-only FaceOcc results without changing security badges."""
+        frame_sequence = getattr(diagnostic, "frame_sequence", -1)
+        if frame_sequence >= 0 and frame_sequence < getattr(
+            self,
+            "_last_face_occ_display_frame",
+            -1,
+        ):
+            return
+        if frame_sequence >= 0:
+            self._last_face_occ_display_frame = frame_sequence
+
+        status = getattr(diagnostic, "status", STATUS_FAILED)
+        labels = {
+            STATUS_UNAVAILABLE: "UNAVAILABLE",
+            STATUS_SUCCESS: "ANALYZED",
+            STATUS_INVALID: "UNCERTAIN",
+            STATUS_FAILED: "FAILED",
+            STATUS_NO_FACE: "NO FACE",
+            STATUS_STALE: "STALE",
+        }
+        display_status = labels.get(status, "WAITING")
+        self._update_badge(self.badge_face_occ, display_status, "identity_unknown")
+
+        result = getattr(diagnostic, "result", None)
+        if status == STATUS_SUCCESS and result is not None:
+            try:
+                completed_at = float(diagnostic.completed_at)
+                age_ms = max(0.0, (time.monotonic() - completed_at) * 1000.0)
+                age_text = f"Age {age_ms:.0f} ms"
+            except (TypeError, ValueError):
+                age_text = "Age unavailable"
+            self.lbl_face_occ_detail.setText(
+                f"Face {diagnostic.face_index} | "
+                f"Visible {result.visible_ratio:.3f} | "
+                f"Inference {result.inference_ms:.1f} ms | "
+                f"{age_text}"
+            )
+        else:
+            reason = getattr(diagnostic, "reason", "diagnostic_pending")
+            self.lbl_face_occ_detail.setText(f"Reason: {reason}")
 
     @Slot(str)
     def on_camera_error(self, error_message: str) -> None:
@@ -355,6 +431,7 @@ class MainWindow(QMainWindow):
         self._update_badge(self.badge_identity, "—", "no_face")
         self._update_badge(self.badge_status, "—", "no_face")
         self._update_badge(self.badge_backend, "OFFLINE", "backend_offline")
+        self._reset_face_occlusion_display()
         self._show_offline_placeholder()
 
         self.btn_start.setEnabled(True)
@@ -366,6 +443,11 @@ class MainWindow(QMainWindow):
         label.setProperty("status", status_prop)
         label.style().unpolish(label)
         label.style().polish(label)
+
+    def _reset_face_occlusion_display(self) -> None:
+        self._last_face_occ_display_frame = -1
+        self._update_badge(self.badge_face_occ, "WAITING", "identity_unknown")
+        self.lbl_face_occ_detail.setText("Waiting for a diagnostic sample.")
 
     def _log_event(self, message: str) -> None:
         """Append timestamped security log entry."""

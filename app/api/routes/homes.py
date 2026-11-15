@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from app.api.dependencies import get_current_user_id
 from app.models.home import HomeCreate, HomeUpdate, HomeResponse
+from app.models.room import RoomListResponse
 from app.services.backend_store import backend_store
 
 router = APIRouter()
@@ -17,12 +18,25 @@ def create_home(
     return backend_store.create_home(owner_id=user_id, data=data)
 
 
+@router.post("/initial", response_model=HomeResponse, status_code=status.HTTP_200_OK)
+def ensure_initial_home(
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Return the user's existing home or safely create their initial home."""
+    return backend_store.ensure_initial_home(owner_id=user_id)
+
+
 @router.get("", response_model=List[HomeResponse])
 def get_user_homes(
     user_id: UUID = Depends(get_current_user_id),
 ):
     """Retrieve all homes owned by the authenticated user."""
     return backend_store.get_user_homes(owner_id=user_id)
+
+
+@router.get("/{home_id}/rooms", response_model=RoomListResponse)
+def get_home_rooms(home_id: UUID, user_id: UUID = Depends(get_current_user_id)):
+    return {"rooms": backend_store.list_rooms(home_id, user_id)}
 
 
 @router.get("/{home_id}", response_model=HomeResponse)

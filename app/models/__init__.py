@@ -5,6 +5,7 @@ from app.models.face import FaceCreate, FaceResponse
 from app.models.device import DeviceCreate, DeviceUpdate, DeviceResponse
 from app.models.security_log import SecurityLogCreate, SecurityLogResponse
 from app.models.alert import AlertCreate, AlertUpdate, AlertResponse
+from app.models.voice_command import VoiceCommandCreate, VoiceCommandResponse, VoiceCommandAccepted
 
 __all__ = [
     "ProfileCreate",
@@ -26,4 +27,7 @@ __all__ = [
     "AlertCreate",
     "AlertUpdate",
     "AlertResponse",
+    "VoiceCommandCreate",
+    "VoiceCommandResponse",
+    "VoiceCommandAccepted",
 ]

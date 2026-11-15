@@ -48,8 +48,8 @@ void main() {
       await tester.pump();
 
       // Verify title and Add Member button render without BoxConstraints infinite width error
-      expect(find.text('Family Members'), findsOneWidget);
-      expect(find.text('Add Member'), findsAtLeastNWidgets(1));
+      expect(find.text('People').first, findsOneWidget);
+      expect(find.text('Add a member'), findsAtLeastNWidgets(1));
       expect(find.byType(ElevatedButton), findsAtLeastNWidgets(1));
     },
   );

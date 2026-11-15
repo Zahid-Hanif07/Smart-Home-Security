@@ -12,5 +12,6 @@ env/
 *.env
 data/faces/
 data/face_database/
+data/security_evidence/
 .gemini/
 

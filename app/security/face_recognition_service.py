@@ -2,16 +2,20 @@ import os
 import time
 import cv2
 import numpy as np
-from typing import Optional
+from typing import Any, Optional
 from app.config.settings import (
     FACE_RECOGNITION_THRESHOLD,
     FACE_RECOGNITION_METRIC,
     SECURITY_HOME_ID,
+    ALLOW_LOCAL_FACE_DATABASE,
 )
 from app.config.backend_settings import settings as backend_settings
 from app.security.face_embedding_service import FaceEmbeddingService
 from app.security.face_database import FaceDatabase
 from app.services.api_client import APIClient
+from app.security.face_security_service import FaceSecurityService
+
+_UNSET_HOME_ID = object()
 
 
 class FaceRecognitionService:
@@ -19,7 +23,7 @@ class FaceRecognitionService:
 
     Features:
     - Generates 128D embeddings for detected face bounding boxes.
-    - Loads registered embeddings from Supabase PostgreSQL via FastAPI endpoint (or local database fallback).
+    - Loads embeddings only for the configured home; optional local data is explicit development-only mode.
     - Evaluates distance/similarity against stored person embeddings using cv2.FaceRecognizerSF.match.
     - Determines identity ('Zahid', 'Amish', etc.) or returns 'Unknown'.
     """
@@ -30,24 +34,39 @@ class FaceRecognitionService:
         database: FaceDatabase = None,
         threshold: float = FACE_RECOGNITION_THRESHOLD,
         metric: str = FACE_RECOGNITION_METRIC,
-        home_id: Optional[str] = None,
+        home_id: Any = _UNSET_HOME_ID,
+        allow_local_database: Optional[bool] = None,
     ):
         self.embedding_service = embedding_service or FaceEmbeddingService()
         self.database = database or FaceDatabase()
+        self.face_security = FaceSecurityService()
         self.threshold = threshold
         self.metric = metric
-        self.home_id = home_id or os.getenv("SECURITY_HOME_ID") or SECURITY_HOME_ID
+        self.home_id = (
+            os.getenv("SECURITY_HOME_ID") or SECURITY_HOME_ID
+            if home_id is _UNSET_HOME_ID
+            else home_id
+        )
+        self.allow_local_database = ALLOW_LOCAL_FACE_DATABASE if allow_local_database is None else allow_local_database
 
         # Cached database entries: dict[str, list[np.ndarray]]
         self.registered_people = {}
         self._loaded_from_remote = False
+        self.data_source = "unavailable"
+        self.database_error = None
         self._last_local_database_check = 0.0
         self._local_database_mtime = None
         self.reload_database()
 
-    def reload_database(self, home_id: Optional[str] = None) -> None:
+    def reload_database(self, home_id: Any = _UNSET_HOME_ID) -> None:
         """Reload registered people and 128D embeddings from FastAPI/Supabase face_records (or local DB fallback)."""
-        target_home_id = home_id or self.home_id or os.getenv("SECURITY_HOME_ID") or SECURITY_HOME_ID
+        if home_id is not _UNSET_HOME_ID:
+            self.home_id = home_id
+        target_home_id = self.home_id
+        self.registered_people = {}
+        self._loaded_from_remote = False
+        self.data_source = "unavailable"
+        self.database_error = None
         people = {}
 
         if target_home_id:
@@ -59,7 +78,7 @@ class FaceRecognitionService:
                 )
                 client = APIClient(auth_token=auth_token)
                 records = client.get_home_face_records(target_home_id)
-                if records:
+                if records is not None:
                     for rec in records:
                         name = rec.get("member_name")
                         emb_raw = rec.get("embedding")
@@ -71,30 +90,36 @@ class FaceRecognitionService:
                     if people:
                         self.registered_people = people
                         self._loaded_from_remote = True
+                        self.data_source = "remote"
                         self._remember_local_database_mtime()
-                        print(f"FaceRecognitionService loaded {len(people)} registered person(s) from Supabase/FastAPI.")
                         return
-                print(
-                    f"FaceRecognitionService found no usable face records for home {target_home_id}; "
-                    "checking the local face database."
-                )
+                    if len(records) == 0:
+                        self.data_source = "remote"
+                    else:
+                        self.database_error = "The selected home returned face records, but none had valid 128D embeddings."
+                    if not self.allow_local_database:
+                        self._remember_local_database_mtime()
+                        return
+                else:
+                    self.database_error = "Face records could not be loaded from the authenticated API."
             except Exception as e:
-                print(f"Notice: Could not load embeddings from FastAPI/Supabase ({e}). Checking local fallback...")
+                self.database_error = f"Could not load selected-home face records: {e}"
         else:
-            print(
-                "SECURITY_HOME_ID is not configured; the Python dashboard cannot select "
-                "Supabase face records and will use the local face database."
-            )
+            self.database_error = "No paired device home has been resolved."
 
-        try:
-            self.registered_people = self.database.load_database()
-            self._loaded_from_remote = False
-            self._remember_local_database_mtime()
-            count = len(self.registered_people)
-            print(f"FaceRecognitionService loaded {count} registered person(s) from local database fallback.")
-        except Exception as e:
-            print(f"Error reloading face database in recognition service: {e}")
-            self.registered_people = {}
+        # Local data is opt-in for isolated development or tests when remote records are not available.
+        if self.allow_local_database and (not target_home_id or not self._loaded_from_remote):
+            try:
+                local_data = self.database.load_database()
+                if local_data:
+                    self.registered_people = local_data
+                    self.data_source = "local_development"
+                    self.database_error = None
+                elif not self.registered_people:
+                    self.data_source = "local_development"
+                self._remember_local_database_mtime()
+            except Exception as e:
+                self.database_error = f"Could not load local development face records: {e}"
 
     def _remember_local_database_mtime(self) -> None:
         try:
@@ -104,6 +129,8 @@ class FaceRecognitionService:
 
     def _refresh_local_database_if_changed(self) -> None:
         """Pick up mobile enrollments written by the local API while the camera runs."""
+        if self.data_source != "local_development":
+            return
         now = time.monotonic()
         if now - self._last_local_database_check < 2.0:
             return
@@ -141,19 +168,36 @@ class FaceRecognitionService:
         unknown_result = {
             "name": "Unknown",
             "matched": False,
+            "decision": "unverified",
             "similarity": 0.0,
             "distance": 1.0,
             "box": box,
             "confidence": detection_confidence,
+            "reason": self.database_error or "No face database records are available for the selected home.",
         }
 
-        if not self.registered_people:
+        quality = self.face_security.evaluate(frame, face_info)
+        unknown_result.update(quality)
+        if quality["quality"] != "usable":
+            unknown_result["reason"] = quality["reason"]
+            return unknown_result
+
+        if self.data_source == "unavailable":
             return unknown_result
 
         # Generate embedding for detected face
         query_embedding = self.embedding_service.compute_embedding(frame, face_info)
         if query_embedding is None:
+            unknown_result["reason"] = "embedding_extraction_failed"
             return unknown_result
+
+        if not self.registered_people:
+            return {
+                **unknown_result,
+                "decision": "unknown_identity",
+                "reason": "The selected home has no valid enrolled face records.",
+                **quality,
+            }
 
         best_name = "Unknown"
         best_similarity = -1.0
@@ -222,19 +266,25 @@ class FaceRecognitionService:
             return {
                 "name": best_name,
                 "matched": True,
+                "decision": "authorized_identity_match",
                 "similarity": best_similarity,
                 "distance": best_distance,
                 "box": box,
                 "confidence": detection_confidence,
+                "reason": "Matched a stored face embedding for the selected home; liveness remains unverified.",
+                **quality,
             }
         else:
             return {
                 "name": "Unknown",
                 "matched": False,
+                "decision": "unknown_identity",
                 "similarity": max(0.0, best_similarity),
                 "distance": best_distance,
                 "box": box,
                 "confidence": detection_confidence,
+                "reason": "No stored face embedding met the configured match threshold.",
+                **quality,
             }
 
     def recognize_faces(self, frame: np.ndarray, detected_faces: list[dict]) -> list[dict]:

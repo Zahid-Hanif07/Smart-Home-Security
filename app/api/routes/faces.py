@@ -4,7 +4,7 @@ from uuid import UUID
 import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.api.dependencies import get_current_user_id
 from app.models.face import FaceCreate, FaceResponse
 from app.services.backend_store import backend_store
@@ -32,7 +32,7 @@ def get_face_services():
 
 
 class FaceRegisterRequest(BaseModel):
-    image_base64: Optional[str] = None
+    image_base64: Optional[str] = Field(default=None, max_length=7 * 1024 * 1024)
     image_path: Optional[str] = None
     embedding: Optional[List[float]] = None
     sample_count: Optional[int] = 1

@@ -29,6 +29,7 @@ from app.repositories import (
     security_log_repository,
     alert_repository,
     device_repository,
+    profile_repository,
 )
 
 
@@ -43,11 +44,22 @@ class BackendStore:
     """Repository façade delegating to structured Supabase PostgreSQL Repositories."""
 
     def __init__(self):
-        self.profiles: Dict[UUID, Dict[str, Any]] = {}
+        pass
+
+    @property
+    def profiles(self) -> Dict[UUID, Dict[str, Any]]:
+        return profile_repository._in_memory_profiles
 
     def clear(self) -> None:
-        """Reset internal states for clean automated test execution."""
-        self.profiles.clear()
+        """Reset internal states for clean automated test execution.
+
+        Clears every in-memory repository so each test class begins with a
+        completely empty store.  Import of pairing_repository is deferred to
+        this method to avoid a circular import at module load time
+        (pairing_repository → home_repository → BackendStore would cycle).
+        """
+        # Standard repositories (mirrors their _in_memory_* dict directly)
+        profile_repository.clear()
         home_repository._in_memory_homes.clear()
         member_repository._in_memory_members.clear()
         face_repository._in_memory_faces.clear()
@@ -55,39 +67,32 @@ class BackendStore:
         security_log_repository._in_memory_logs.clear()
         alert_repository._in_memory_alerts.clear()
 
+        # Pairing repository — imported here to avoid circular imports at
+        # module level (pairing_repository depends on home_repository).
+        from app.repositories.pairing_repository import pairing_repository as _pairing_repo
+        _pairing_repo.clear()
+        from app.repositories.voice_command_repository import voice_command_repository
+        voice_command_repository.clear()
+        from app.repositories.room_repository import room_repository
+        room_repository.clear()
+
     # -------------------------------------------------------------------------
     # PROFILES
     # -------------------------------------------------------------------------
     def get_or_create_profile(self, user_id: Any, email: str, name: str) -> Dict[str, Any]:
-        u_uuid = _to_uuid(user_id)
-        if u_uuid not in self.profiles:
-            self.profiles[u_uuid] = {
-                "id": u_uuid,
-                "name": name,
-                "email": email,
-                "image_url": None,
-                "created_at": datetime.now(timezone.utc),
-            }
-        return self.profiles[u_uuid]
+        return profile_repository.get_or_create_profile(user_id=user_id, email=email, name=name)
 
     def update_profile(self, user_id: Any, update_data: ProfileUpdate) -> Dict[str, Any]:
-        u_uuid = _to_uuid(user_id)
-        profile = self.profiles.get(u_uuid)
-        if not profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
-
-        if update_data.name is not None:
-            profile["name"] = update_data.name
-        if update_data.image_url is not None:
-            profile["image_url"] = update_data.image_url
-
-        return profile
+        return profile_repository.update_profile(user_id=user_id, update_data=update_data)
 
     # -------------------------------------------------------------------------
     # HOMES
     # -------------------------------------------------------------------------
     def create_home(self, owner_id: Any, data: HomeCreate) -> Dict[str, Any]:
         return home_repository.create_home(owner_id=_to_uuid(owner_id), data=data)
+
+    def ensure_initial_home(self, owner_id: Any) -> Dict[str, Any]:
+        return home_repository.ensure_initial_home(owner_id=_to_uuid(owner_id))
 
     def get_user_homes(self, owner_id: Any) -> List[Dict[str, Any]]:
         return home_repository.get_user_homes(owner_id=_to_uuid(owner_id))
@@ -100,6 +105,10 @@ class BackendStore:
 
     def delete_home(self, home_id: Any, requesting_user_id: Any) -> bool:
         return home_repository.delete_home(home_id=_to_uuid(home_id), requesting_user_id=_to_uuid(requesting_user_id))
+
+    def list_rooms(self, home_id: Any, requesting_user_id: Any) -> List[Dict[str, Any]]:
+        from app.repositories.room_repository import room_repository
+        return room_repository.list_for_owner(_to_uuid(home_id), _to_uuid(requesting_user_id))
 
     # -------------------------------------------------------------------------
     # HOME MEMBERS

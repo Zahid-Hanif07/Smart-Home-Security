@@ -4,8 +4,11 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QImage
 from app.config.settings import CAMERA_INDEX, FRAME_DELAY_MS
 from app.security.security_service import SecurityService
+from app.security.face_occlusion_runtime import FaceOcclusionRuntime
 from app.streaming.frame_manager import get_frame_manager
 from app.streaming.frame_publisher import FramePublisher
+from app.services.face_occlusion_diagnostic_publisher import FaceOcclusionDiagnosticPublisher
+from datetime import datetime, timezone
 
 
 class CameraWorker(QThread):
@@ -18,6 +21,7 @@ class CameraWorker(QThread):
     status_updated = Signal(bool, bool)  # (motion_detected, face_detected)
     identity_updated = Signal(str, str)  # (identity_name, authorization_status)
     backend_status_updated = Signal(bool)  # True if backend online, False if offline
+    face_occlusion_updated = Signal(object)
     log_event = Signal(str)
     error_occurred = Signal(str)
     stream_stopped = Signal()
@@ -26,39 +30,125 @@ class CameraWorker(QThread):
         super().__init__(parent)
         self.camera_index = camera_index
         self.running = False
-        self.security_service = SecurityService(home_id=home_id)
+        # The configured home is not authoritative for a paired camera.
+        self.home_id = None
+        self.security_service = SecurityService(home_id=self.home_id)
+        self.face_occlusion_runtime = FaceOcclusionRuntime()
+        self._last_face_occlusion_frame = -1
+        self._stale_face_occlusion_frame = None
+        set_face_occlusion_runtime = getattr(
+            self.security_service,
+            "set_face_occlusion_runtime",
+            None,
+        )
+        if set_face_occlusion_runtime is not None:
+            set_face_occlusion_runtime(self.face_occlusion_runtime)
+        self.security_service.event_service.on_delivery_status = self._on_event_delivery_status
         self.frame_manager = get_frame_manager()
         self.frame_publisher = FramePublisher()
+        self.face_occlusion_publisher = FaceOcclusionDiagnosticPublisher(
+            session_provider=getattr(
+                self.frame_publisher,
+                "get_session_snapshot",
+                lambda: None,
+            ),
+        )
         self.frame_publisher.start()
+
+    def _on_event_delivery_status(self, event_type: str, succeeded: bool) -> None:
+        state = "delivered" if succeeded else "delivery failed"
+        self.log_event.emit(f"Backend {state}: {event_type}")
 
 
     def set_home_id(self, home_id: str) -> None:
         """Update backend home ID in SecurityService."""
+        self.home_id = home_id
         self.security_service.set_home_id(home_id)
+
+    def _sync_resolved_home_id(self) -> None:
+        """Apply publisher identity changes on the camera-processing thread."""
+        home_id = self.frame_publisher.resolved_home_id
+        if home_id is not None and home_id != self.home_id:
+            self.set_home_id(home_id)
 
     def reload_face_database(self) -> None:
         """Reload face database embeddings in SecurityService."""
         self.security_service.reload_face_database()
         self.log_event.emit("Face database reloaded in camera worker.")
 
+    def _emit_face_occlusion_updates(self) -> None:
+        current_frame = self.security_service.frame_sequence
+        for diagnostic in self.face_occlusion_runtime.drain_results():
+            if diagnostic.frame_sequence >= 0 and diagnostic.frame_sequence < self._last_face_occlusion_frame:
+                continue
+            if diagnostic.frame_sequence >= 0 and self.face_occlusion_runtime.is_stale(
+                diagnostic,
+                current_frame_sequence=current_frame,
+                max_age_frames=self.face_occlusion_runtime.max_result_age_frames,
+                max_age_seconds=self.face_occlusion_runtime.max_result_age_seconds,
+            ):
+                continue
+            self.face_occlusion_updated.emit(diagnostic)
+            self.face_occlusion_publisher.submit(diagnostic)
+            self._last_face_occlusion_frame = max(
+                self._last_face_occlusion_frame,
+                diagnostic.frame_sequence,
+            )
+            self._stale_face_occlusion_frame = None
+
+        latest = self.face_occlusion_runtime.latest_result
+        if (
+            latest is not None
+            and latest.frame_sequence >= 0
+            and latest.frame_sequence >= self._last_face_occlusion_frame
+            and self._stale_face_occlusion_frame != latest.frame_sequence
+            and self.face_occlusion_runtime.is_stale(
+                latest,
+                current_frame_sequence=current_frame,
+                max_age_frames=self.face_occlusion_runtime.max_result_age_frames,
+                max_age_seconds=self.face_occlusion_runtime.max_result_age_seconds,
+            )
+        ):
+            self.face_occlusion_updated.emit(
+                self.face_occlusion_runtime.mark_stale(latest)
+            )
+            self._last_face_occlusion_frame = latest.frame_sequence
+            self._stale_face_occlusion_frame = latest.frame_sequence
+
     def run(self) -> None:
         """Main camera execution loop running on separate QThread."""
         cap = cv2.VideoCapture(self.camera_index)
 
         if not cap.isOpened():
+            for item in self.security_service.integrity_service.inspect(None, read_ok=False, camera_open=False):
+                self.security_service.event_service.handle_system_event(item)
             self.error_occurred.emit(
                 "Unable to access camera. Please check camera permissions or whether another application is using the camera."
             )
+            cap.release()
+            self.running = False
+            self.frame_publisher.stop()
+            self.security_service.event_service.shutdown(wait=False)
+            self.stream_stopped.emit()
             return
 
         self.running = True
+        self.face_occlusion_runtime.start()
+        self.face_occlusion_publisher.start()
         self.log_event.emit("Camera connected successfully.")
         self.log_event.emit("Security monitoring active.")
+        if not self.home_id:
+            self.log_event.emit("Remote face records and events will activate after device pairing.")
+        if not self.frame_publisher.device_token:
+            self.log_event.emit("REMOTE STREAM DISABLED: use Pair Camera to securely pair this desktop.")
+        if self.security_service.recognition_service.database_error:
+            self.log_event.emit(f"Face records unavailable: {self.security_service.recognition_service.database_error}")
 
         prev_motion = False
         prev_face = False
         prev_identity = ""
         prev_backend_status = None
+        prev_frame_publish_error = None
 
         loop_counter = 0
 
@@ -66,8 +156,12 @@ class CameraWorker(QThread):
             while self.running and cap.isOpened():
                 ret, frame = cap.read()
                 if not ret or frame is None:
+                    for item in self.security_service.integrity_service.inspect(None, read_ok=False):
+                        self.security_service.event_service.handle_system_event(item)
                     self.error_occurred.emit("Failed to grab frame from camera stream.")
                     break
+
+                self._sync_resolved_home_id()
 
                 # Run security processing pipeline (Motion -> Face -> Embedding & Recognition -> Backend Reporting)
                 (
@@ -77,6 +171,7 @@ class CameraWorker(QThread):
                     face_count,
                     recognition_results,
                 ) = self.security_service.process_security_frame(frame)
+                self._emit_face_occlusion_updates()
 
                 # Update shared thread-safe FrameManager with processed security overlay frame
                 self.frame_manager.update_frame(annotated_frame)
@@ -95,6 +190,11 @@ class CameraWorker(QThread):
                             self.log_event.emit("Backend status: OFFLINE (Security monitoring running locally)")
                         prev_backend_status = is_backend_online
 
+                if self.frame_publisher.last_error != prev_frame_publish_error:
+                    if self.frame_publisher.last_error:
+                        self.log_event.emit(f"Camera stream publication: {self.frame_publisher.last_error}")
+                    prev_frame_publish_error = self.frame_publisher.last_error
+
                 loop_counter += 1
 
                 # Determine identity and status
@@ -108,7 +208,10 @@ class CameraWorker(QThread):
 
                     if matched and name != "Unknown":
                         current_identity = name
-                        current_status = "AUTHORIZED"
+                        current_status = "IDENTITY MATCHED (LIVENESS UNVERIFIED)"
+                    elif primary_rec.get("decision") == "unverified":
+                        current_identity = "UNVERIFIED"
+                        current_status = "UNVERIFIED"
                     else:
                         current_identity = "UNKNOWN"
                         current_status = "UNAUTHORIZED"
@@ -159,6 +262,9 @@ class CameraWorker(QThread):
             self.error_occurred.emit(f"Unexpected camera error: {e}")
         finally:
             cap.release()
+            self.face_occlusion_runtime.stop()
+            self.face_occlusion_publisher.stop()
+            self.frame_publisher.stop()
             self.running = False
             self.log_event.emit("Camera disconnected and resources released.")
             self.stream_stopped.emit()
@@ -166,7 +272,9 @@ class CameraWorker(QThread):
     def stop(self) -> None:
         """Safely request thread termination and camera release."""
         self.running = False
+        self.face_occlusion_runtime.stop()
+        self.face_occlusion_publisher.stop()
         self.frame_publisher.stop()
-        self.security_service.event_service.shutdown()
+        self.security_service.event_service.shutdown(wait=False)
         self.wait(2000)
 

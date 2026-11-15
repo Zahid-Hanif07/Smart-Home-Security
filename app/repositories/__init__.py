@@ -4,6 +4,7 @@ from app.repositories.face_repository import face_repository, FaceRepository
 from app.repositories.security_log_repository import security_log_repository, SecurityLogRepository
 from app.repositories.alert_repository import alert_repository, AlertRepository
 from app.repositories.device_repository import device_repository, DeviceRepository
+from app.repositories.profile_repository import profile_repository, ProfileRepository
 
 __all__ = [
     "home_repository",
@@ -18,5 +19,7 @@ __all__ = [
     "AlertRepository",
     "device_repository",
     "DeviceRepository",
+    "profile_repository",
+    "ProfileRepository",
     "is_supabase_configured",
 ]
